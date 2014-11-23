@@ -89,6 +89,7 @@ int main(int argc, char ** argv) {
 			int id = mysql_add_sensor(addr);
 
 			printf("Connection added to database with id %d\n", id);
+			printf("FUCK\n");
 
 			struct timeval tv;
 
