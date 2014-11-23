@@ -86,7 +86,9 @@ int main(int argc, char ** argv) {
 			char addr[15];
 			printf("Connected %s with pid %d\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid());
 
-			mysql_add_sensor(addr);
+			int id = mysql_add_sensor(addr);
+
+			printf("Connection added to database with id %d\n", id);
 
 			struct timeval tv;
 
