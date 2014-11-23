@@ -32,7 +32,7 @@ int mysql_connect(){
 */
 int mysql_add_sensor(char * ip){
 	char buff[200];
-	char * query = "insert into sensors(ip, active, start, end) values('%s', true, '%d-%d-%d %d:%d:%d', '2013-01-01 20:20:20')\n"
+	char * query = "insert into sensors(ip, active, start, end) values('%s', true, '%d-%d-%d %d:%d:%d', '2013-01-01 20:20:20')\n";
 	time_t t = time(NULL);
 	struct tm tm = *localtime(&t);
 
