@@ -33,8 +33,6 @@ int mysql_connect(){
 int mysql_add_sensor(char * ip){
 	char buff[200];
 	char * query = "insert into sensors(ip, active, start, end) values('%s', true, FROM_UNIXTIME(%d), '2013-01-01 20:20:20')\n";
-	time_t t = time(NULL);
-	struct tm *tm = localtime(&t);
 
 	sprintf(buff, query, ip, time(NULL));
 
@@ -87,6 +85,8 @@ int main(int argc, char ** argv) {
 		if(fork() == 0){
 			char addr[15];
 			printf("Connected %s with pid %d\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid());
+
+			mysql_add_sensor(addr);
 
 			struct timeval tv;
 
