@@ -32,11 +32,11 @@ int mysql_connect(){
 */
 int mysql_add_sensor(char * ip){
 	char buff[200];
-	char * query = "insert into sensors(ip, active, start, end) values('%s', true, '%d-%d-%d %d:%d:%d', '2013-01-01 20:20:20')\n";
+	char * query = "insert into sensors(ip, active, start, end) values('%s', true, FROM_UNIXTIME(%d), '2013-01-01 20:20:20')\n";
 	time_t t = time(NULL);
 	struct tm *tm = localtime(&t);
 
-	sprintf(buff, query, ip, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	sprintf(buff, query, ip, time(NULL));
 
 	if (mysql_query(conn, "select * from sensors")) {
       fprintf(stderr, "%s\n", mysql_error(conn));
