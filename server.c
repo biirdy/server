@@ -36,7 +36,7 @@ int mysql_add_sensor(char * ip){
 
 	sprintf(buff, query, ip, time(NULL));
 
-	if (mysql_query(conn, "select * from sensors")) {
+	if (mysql_query(conn, buff)) {
       fprintf(stderr, "%s\n", mysql_error(conn));
       return -1;
    }
