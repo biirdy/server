@@ -32,7 +32,7 @@ int mysql_connect(){
 */
 int mysql_add_sensor(char * ip){
 	char buff[200];
-	char * query = "insert into sensors(ip, active, start, end) values('%s', true, FROM_UNIXTIME(%d), '2013-01-01 20:20:20')\n";
+	char * query = "insert into sensors(ip, active, start) values('%s', true, FROM_UNIXTIME(%d))\n";
 
 	sprintf(buff, query, ip, time(NULL));
 
@@ -42,6 +42,19 @@ int mysql_add_sensor(char * ip){
    }
 	
 	return mysql_insert_id(conn);
+}
+
+int mysql_remove_sensor(int id){
+	char buff[200];
+	char * query = "update sensors set active=false, end=FROM_UNIXTIME(%d)";
+
+	sprintf(buff, query, time(NULL));
+
+	if (mysql_query(conn, buff)) {
+      fprintf(stderr, "%s\n", mysql_error(conn));
+      return -1;
+   }
+   return 1;
 }
 
 int main(int argc, char ** argv) {
@@ -89,7 +102,6 @@ int main(int argc, char ** argv) {
 			int id = mysql_add_sensor(addr);
 
 			printf("Connection added to database with id %d\n", id);
-			printf("FUCK\n");
 
 			struct timeval tv;
 
@@ -122,6 +134,8 @@ int main(int argc, char ** argv) {
 					
 			}
 			printf("Connection %s %d closed\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid());
+			printf("Removing sensor with id: %d from database \n", id);
+			mysql_remove_sensor(id);
 			close(newSocket);
 		}
 	}
