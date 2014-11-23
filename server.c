@@ -6,7 +6,49 @@
 
 #include <sys/time.h>
 
-int main (int argc, char ** argv) {
+#include <mysql.h>
+
+MYSQL *conn;
+
+int mysql_connect(){
+	
+	MYSQL_RES *res;
+	MYSQL_ROW row;
+	char *server = "localhost";
+	char *user = "root";
+	char *password = "root";
+	char *database = "tnp";
+	conn = mysql_init(NULL);
+	/* Connect to database */
+	if (!mysql_real_connect(conn, server,
+		user, password, database, 0, NULL, 0)) {
+		fprintf(stderr, "%s\n", mysql_error(conn));
+		return 0;
+	}
+}
+
+/*
+* Returns the id
+*/
+int mysql_add_sensor(char * ip){
+	char buff[200];
+	char * query = "insert into sensors(ip, active, start, end) values('%s', true, '%d-%d-%d %d:%d:%d', '2013-01-01 20:20:20')\n"
+	time_t t = time(NULL);
+	struct tm tm = *localtime(&t);
+
+	sprintf(buff, query, ip, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+	if (mysql_query(conn, "select * from sensors")) {
+      fprintf(stderr, "%s\n", mysql_error(conn));
+      return -1;
+   }
+	
+	return mysql_insert_id(conn);
+}
+
+int main(int argc, char ** argv) {
+
+	mysql_connect();
 
 	int welcomeSocket, newSocket;
 	char buffer[1024];
