@@ -46,7 +46,7 @@ int mysql_add_sensor(char * ip){
 
 int mysql_remove_sensor(int id){
 	char buff[200];
-	char * query = "update sensors set active=false, end=FROM_UNIXTIME(%d) where id=%d";
+	char * query = "update sensors set active=false, end=FROM_UNIXTIME(%d) where sensor_id=%d";
 
 	sprintf(buff, query, time(NULL), id);
 
