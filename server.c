@@ -109,11 +109,15 @@ int main(int argc, char ** argv) {
 		if(fork() == 0){
 			char addr[15];
 			printf("Connected %s with pid %d\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid());
-			printf("%d\n", ntohl(clientAddr.sin_addr.s_addr));
 
+			//add to db 
 			int id = mysql_add_sensor(addr);
-
 			printf("Connection added to database with id %d\n", id);
+
+			//call initial ping 
+			char * command = "../tools/ping %d %d %s";
+			sprintf(cmd, command, id, addr);
+			system(cmd);
 
 			struct timeval tv;
 
