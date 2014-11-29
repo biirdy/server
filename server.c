@@ -10,6 +10,17 @@
 
 MYSQL *conn;
 
+char * iptos (uint32_t ipaddr) {
+    static char ips[16];
+   
+    sprintf(ips, "%d.%d.%d.%d",
+        (ipaddr >> 24),
+        (ipaddr >> 16) & 0xff,
+        (ipaddr >>  8) & 0xff,
+        (ipaddr      ) & 0xff );
+    return ips;
+}
+
 int mysql_connect(){
 	
 	MYSQL_RES *res;
@@ -97,7 +108,8 @@ int main(int argc, char ** argv) {
 		newSocket = accept(welcomeSocket, (struct sockaddr *) &clientAddr, &addr_size);
 		if(fork() == 0){
 			char addr[15];
-			printf("Connected %s with pid %d\n", inet_ntop(AF_INET, &ntohl(clientAddr.sin_addr), addr, addr_size), (int) getpid());
+			printf("Connected %s with pid %d\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid());
+			printf("%s\n", ntohl(clientAddr.sin_addr.s_addr));
 
 			int id = mysql_add_sensor(addr);
 
