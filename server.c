@@ -109,7 +109,7 @@ int main(int argc, char ** argv) {
 		if(fork() == 0){
 			char addr[15];
 			printf("Connected %s with pid %d\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid());
-			printf("%s\n", ntohl(clientAddr.sin_addr.s_addr));
+			printf("%d\n", ntohl(clientAddr.sin_addr.s_addr));
 
 			int id = mysql_add_sensor(addr);
 
