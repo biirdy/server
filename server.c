@@ -116,6 +116,7 @@ int main(int argc, char ** argv) {
 
 			//call initial ping 
 			char * command = "../tools/ping %d %d %s";
+			char cmd[50];
 			sprintf(cmd, command, id, addr);
 			system(cmd);
 
