@@ -97,7 +97,7 @@ int main(int argc, char ** argv) {
 		newSocket = accept(welcomeSocket, (struct sockaddr *) &clientAddr, &addr_size);
 		if(fork() == 0){
 			char addr[15];
-			printf("Connected %s with pid %d\n", inet_ntop(AF_INET, ntohl(&clientAddr.sin_addr), addr, addr_size), (int) getpid());
+			printf("Connected %s with pid %d\n", inet_ntop(AF_INET, &ntohl(clientAddr.sin_addr), addr, addr_size), (int) getpid());
 
 			int id = mysql_add_sensor(addr);
 
