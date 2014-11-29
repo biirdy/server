@@ -39,7 +39,7 @@ int mysql_add_sensor(char * ip){
 	if (mysql_query(conn, buff)) {
       fprintf(stderr, "%s\n", mysql_error(conn));
       return -1;
-   }
+   	}
 	
 	return mysql_insert_id(conn);
 }
@@ -97,7 +97,7 @@ int main(int argc, char ** argv) {
 		newSocket = accept(welcomeSocket, (struct sockaddr *) &clientAddr, &addr_size);
 		if(fork() == 0){
 			char addr[15];
-			printf("Connected %s with pid %d\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid());
+			printf("Connected %s with pid %d\n", inet_ntop(AF_INET, ntohl(&clientAddr.sin_addr), addr, addr_size), (int) getpid());
 
 			int id = mysql_add_sensor(addr);
 
