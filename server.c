@@ -122,7 +122,7 @@ int main(int argc, char ** argv) {
 			
 			//ping loop
 			int ping_pid;
-			if((ping_id = fork) == 0){
+			if((ping_pid = fork) == 0){
 				//call initial ping 
 				char * command = "../tools/ping %d %d %s";
 				char cmd[50];
