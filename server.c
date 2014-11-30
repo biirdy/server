@@ -129,8 +129,8 @@ int main(int argc, char ** argv) {
 			struct event ev;
 		  	struct timeval tvi;
 
-		  	tv.tv_sec = 3;
-		  	tv.tv_usec = 0;
+		  	tvi.tv_sec = 3;
+		  	tvi.tv_usec = 0;
 
 		  	event_init();
 		  	evtimer_set(&ev, say_hello, NULL);
