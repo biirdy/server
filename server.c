@@ -5,7 +5,7 @@
 #include <arpa/inet.h>
 #include <sys/time.h>
 
-#include <event.h>
+#include <signal.h>
 
 #include <mysql.h>
 
@@ -122,7 +122,7 @@ int main(int argc, char ** argv) {
 			
 			//ping loop
 			int ping_pid;
-			if((ping_pid = fork) == 0){
+			if((ping_pid = fork()) == 0){
 				//call initial ping 
 				char * command = "../tools/ping %d %d %s";
 				char cmd[50];
