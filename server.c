@@ -129,6 +129,7 @@ int main(int argc, char ** argv) {
 				sprintf(cmd, command, id, 10, addr);
 				while(1){
 					system(cmd);
+					printf("PINGDING\n");
 					sleep(10);
 				}
 			}
