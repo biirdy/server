@@ -3,8 +3,9 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <arpa/inet.h>
-
 #include <sys/time.h>
+
+#include <event.h>
 
 #include <mysql.h>
 
@@ -68,6 +69,11 @@ int mysql_remove_sensor(int id){
    return 1;
 }
 
+void say_hello(int fd, short event, void *arg)
+{
+  printf("Hello\n");
+}
+
 int main(int argc, char ** argv) {
 
 	mysql_connect();
@@ -119,6 +125,17 @@ int main(int argc, char ** argv) {
 			char cmd[50];
 			sprintf(cmd, command, id, 3, addr);
 			system(cmd);
+
+			struct event ev;
+		  	struct timeval tvi;
+
+		  	tv.tv_sec = 3;
+		  	tv.tv_usec = 0;
+
+		  	event_init();
+		  	evtimer_set(&ev, say_hello, NULL);
+		  	evtimer_add(&ev, &tvi);
+		  	event_dispatch();
 
 			struct timeval tv;
 
