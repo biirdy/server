@@ -119,23 +119,19 @@ int main(int argc, char ** argv) {
 			//add to db 
 			int id = mysql_add_sensor(addr);
 			printf("Connection added to database with id %d\n", id);
-
-			//call initial ping 
-			char * command = "../tools/ping %d %d %s";
-			char cmd[50];
-			sprintf(cmd, command, id, 3, addr);
-			system(cmd);
-
-			struct event ev;
-		  	struct timeval tvi;
-
-		  	tvi.tv_sec = 3;
-		  	tvi.tv_usec = 0;
-
-		  	event_init();
-		  	evtimer_set(&ev, say_hello, NULL);
-		  	evtimer_add(&ev, &tvi);
-		  	event_dispatch();
+			
+			//ping loop
+			int ping_pid;
+			if((ping_id = fork) == 0){
+				//call initial ping 
+				char * command = "../tools/ping %d %d %s";
+				char cmd[50];
+				sprintf(cmd, command, id, 10, addr);
+				while(1){
+					system(cmd);
+					sleep(10);
+				}
+			}
 
 			struct timeval tv;
 
@@ -169,8 +165,18 @@ int main(int argc, char ** argv) {
 			}
 			printf("Connection %s %d closed\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid());
 			printf("Removing sensor with id: %d from database \n", id);
+			
+			//mark as disconnected in db 
 			mysql_remove_sensor(id);
+
+			//close comm socket
 			close(newSocket);
+
+			//kill ping loop (process)
+			kill(ping_pid, SIGKILL);
+
+			//kill comm (process)
+			exit();
 		}
 	}
 
