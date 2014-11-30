@@ -176,7 +176,7 @@ int main(int argc, char ** argv) {
 			kill(ping_pid, SIGKILL);
 
 			//kill comm (process)
-			exit();
+			exit(1);
 		}
 	}
 
