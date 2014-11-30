@@ -117,7 +117,7 @@ int main(int argc, char ** argv) {
 			//call initial ping 
 			char * command = "../tools/ping %d %d %s";
 			char cmd[50];
-			sprintf(cmd, command, id, addr);
+			sprintf(cmd, command, id, 3, addr);
 			system(cmd);
 
 			struct timeval tv;
