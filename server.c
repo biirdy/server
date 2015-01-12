@@ -128,6 +128,7 @@ int main(int argc, char ** argv) {
 				char cmd[50];
 				sprintf(cmd, command, id, 5, addr);
 				while(1){
+					printf("Starting pingn\n");
 					system(cmd);
 					sleep(60);
 				}
