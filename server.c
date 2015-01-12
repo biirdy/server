@@ -126,11 +126,10 @@ int main(int argc, char ** argv) {
 				//call initial ping 
 				char * command = "../tools/ping %d %d %s &";
 				char cmd[50];
-				sprintf(cmd, command, id, 10, addr);
+				sprintf(cmd, command, id, 5, addr);
 				while(1){
 					system(cmd);
-					printf("PINGDING\n");
-					sleep(10);
+					sleep(60);
 				}
 			}
 
@@ -177,7 +176,7 @@ int main(int argc, char ** argv) {
 			kill(ping_pid, SIGKILL);
 
 			//kill comm (process)
-			exit(1);
+			exit(0);
 		}
 	}
 
