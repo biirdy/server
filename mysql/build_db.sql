@@ -1,9 +1,9 @@
 drop database if exists tnp;
 create database tnp;
 
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY 'root' WITH GRANT OPTION;
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY 'root' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
-	
+
 use tnp;
 
 create table sensors(	sensor_id integer NOT NULL AUTO_INCREMENT, ip varchar(15) not null, active boolean not null, start DATETIME not null, end DATETIME, primary key(sensor_id)) engine = InnoDB;
