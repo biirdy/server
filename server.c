@@ -124,9 +124,9 @@ int main(int argc, char ** argv) {
 			int ping_pid;
 			if((ping_pid = fork()) == 0){
 				//call initial ping 
-				char * command = "../tools/ping %d %d %s &";
+				char * command = "../tools/ping %d %d &";
 				char cmd[50];
-				sprintf(cmd, command, id, 5, addr);
+				sprintf(cmd, command, id, 5);
 				while(1){
 					printf("%s\n", cmd);
 					system(cmd);
