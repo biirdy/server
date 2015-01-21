@@ -5,6 +5,8 @@
 #include <arpa/inet.h>
 #include <sys/time.h>
 
+#include <syslog.h>
+#include <unistd.h>
 #include <signal.h>
 
 #include <mysql.h>
@@ -76,6 +78,8 @@ void say_hello(int fd, short event, void *arg)
 
 int main(int argc, char ** argv) {
 
+	openlog("slog", LOG_PID|LOG_CONS, LOG_USER);
+
 	mysql_connect();
 
 	int welcomeSocket, newSocket;
@@ -119,6 +123,7 @@ int main(int argc, char ** argv) {
 			//add to db 
 			int id = mysql_add_sensor(addr);
 			printf("Connection added to database with id %d\n", id);
+			syslog(LOG_INFO, "Sensor %s connected with id %d", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), id);
 			
 			//ping loop
 			int ping_pid;
@@ -182,6 +187,7 @@ int main(int argc, char ** argv) {
 	}
 
 	close(welcomeSocket);
+	closelog();
 
 	return 0;
 }
