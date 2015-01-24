@@ -3,6 +3,7 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <time.h>
 #include <sys/time.h>
 
 #include <syslog.h>
@@ -11,7 +12,83 @@
 
 #include <mysql.h>
 
+#include <stdarg.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
 MYSQL *conn;
+FILE* logs;
+
+void server_log(const char * type, const char * fmt, ...){
+	//format message
+	va_list args; 
+	va_start(args, fmt);
+
+	char msg[100];
+	vsprintf(msg, fmt, args);
+
+	va_end(args);
+
+	//get timestamp
+	time_t ltime;
+	struct tm result;
+	char stime[32];
+	ltime = time(NULL);
+	localtime_r(&ltime, &result);
+	asctime_r(&result, stime);
+	strtok(stime, "\n");			
+
+	fprintf(logs, "%s - Server - [%s] - %s\n", stime, type, msg);		//write to log
+	fflush(logs);
+}
+
+static void deamonise(){
+    pid_t pid;
+
+    /* Fork off the parent process */
+    pid = fork();
+
+    /* An error occurred */
+    if (pid < 0)
+        exit(EXIT_FAILURE);
+
+    /* Success: Let the parent terminate */
+    if (pid > 0)
+        exit(EXIT_SUCCESS);
+
+    /* On success: The child process becomes session leader */
+    if (setsid() < 0)
+        exit(EXIT_FAILURE);
+
+    /* Fork off for the second time*/
+    pid = fork();
+
+    /* An error occurred */
+    if (pid < 0){
+        exit(EXIT_FAILURE);
+    }
+
+    /* Success: Let the parent terminate */
+    if (pid > 0)
+        exit(EXIT_SUCCESS);
+    
+
+    /* Set new file permissions */
+    umask(0);
+
+    /* Change the working directory to the root directory */
+    /* or another appropriated directory */
+    chdir("/");
+
+    server_log("Info", "Deamonised");
+}
+
+void closeLog(int sig){
+	server_log("Info", "Server stopped");
+    fclose(logs);
+    exit(1);
+}
 
 char * iptos (uint32_t ipaddr) {
     static char ips[16];
@@ -36,7 +113,7 @@ int mysql_connect(){
 	/* Connect to database */
 	if (!mysql_real_connect(conn, server,
 		user, password, database, 0, NULL, 0)) {
-		fprintf(stderr, "%s\n", mysql_error(conn));
+		server_log("Error", "Database Connection - %s", mysql_error(conn));
 		return 0;
 	}
 }
@@ -51,7 +128,7 @@ int mysql_add_sensor(char * ip){
 	sprintf(buff, query, ip, time(NULL));
 
 	if (mysql_query(conn, buff)) {
-      fprintf(stderr, "%s\n", mysql_error(conn));
+      server_log("Error", "Database adding sensor - %s", mysql_error(conn));
       return -1;
    	}
 	
@@ -66,20 +143,26 @@ int mysql_remove_sensor(int id){
 
 	if (mysql_query(conn, buff)) {
       fprintf(stderr, "%s\n", mysql_error(conn));
+      server_log("Error", "Database removing sensor - %s", mysql_error(conn));
       return -1;
    }
    return 1;
 }
 
-void say_hello(int fd, short event, void *arg)
-{
-  printf("Hello\n");
-}
-
 int main(int argc, char ** argv) {
 
-	openlog("slog", LOG_PID|LOG_CONS, LOG_USER);
+	//signal handler to close log file
+	signal(SIGINT, closeLog);
+	signal(SIGTERM, closeLog);
 
+	//log files
+	logs = fopen("/var/log/tnp/server.log", "a+");
+
+	server_log("Info" , "Server Started");
+
+	deamonise();
+
+	//connect to database
 	mysql_connect();
 
 	int welcomeSocket, newSocket;
@@ -87,6 +170,8 @@ int main(int argc, char ** argv) {
 	struct sockaddr_in serverAddr, clientAddr;
 	struct sockaddr_storage serverStorage;
 	socklen_t addr_size;
+
+	addr_size = sizeof serverStorage;
 
 	/*---- Create the socket. The three arguments are: ----*/
 	/* 1) Internet domain 2) Stream socket 3) Default protocol (TCP in this case) */
@@ -106,34 +191,35 @@ int main(int argc, char ** argv) {
 	bind(welcomeSocket, (struct sockaddr *) &serverAddr, sizeof(serverAddr));
 
 	/*---- Listen on the socket, with 5 max connection requests queued ----*/
-	if(listen(welcomeSocket,5)==0)
-		printf("Listening\n");
-	else
-		printf("Error\n");
+	if(listen(welcomeSocket,5)==0){
+		server_log("Info" , "Listening on %s", argv[1]);
+	}else{
+		server_log("Error" , "Failed to listening on %s", argv[1]);
+	}
 
 	/*---- Accept call creates a new socket for the incoming connection ----*/
-	addr_size = sizeof serverStorage;
+	
 
 	while(1){
 		newSocket = accept(welcomeSocket, (struct sockaddr *) &clientAddr, &addr_size);
 		if(fork() == 0){
 			char addr[15];
-			printf("Connected %s with pid %d\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid());
+			//printf("Connected %s with pid %d\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid());
+			inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size);
 
 			//add to db 
 			int id = mysql_add_sensor(addr);
-			printf("Connection added to database with id %d\n", id);
-			syslog(LOG_INFO, "Sensor %s connected with id %d", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), id);
+			server_log("Info" , "Sensor %s connected with id %d", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), id);
 			
 			//ping loop
 			int ping_pid;
 			if((ping_pid = fork()) == 0){
 				//call initial ping 
-				char * command = "../tools/ping %d %d &";
+				char * command = "/home/ubuntu/tools/ping %d %d &";
 				char cmd[50];
 				sprintf(cmd, command, id, 5);
 				while(1){
-					printf("%s\n", cmd);
+					server_log("Info", "Executing command %s", cmd);
 					system(cmd);
 					sleep(60);
 				}
@@ -158,9 +244,9 @@ int main(int argc, char ** argv) {
 				}else if(ready){
 					bytes = recv(newSocket,buffer,13,0);
 					if(strcmp(buffer, "Heartbeat") == 0){
-						printf("Heartbeat from %s %d - %s\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid(), buffer);
+						//printf("Heartbeat from %s %d - %s\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid(), buffer);
 					}else{
-						printf("XXX\n");
+						//printf("XXX\n");
 					}
 					//printf("%d\n", strcmp("Heartbeat", buffer));	
 				}else{
@@ -169,8 +255,9 @@ int main(int argc, char ** argv) {
 				}
 					
 			}
-			printf("Connection %s %d closed\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid());
-			printf("Removing sensor with id: %d from database \n", id);
+			//printf("Connection %s %d closed\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid());
+			
+			server_log("Info", "Sensor %d discconected", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size));
 			
 			//mark as disconnected in db 
 			mysql_remove_sensor(id);
@@ -187,6 +274,8 @@ int main(int argc, char ** argv) {
 	}
 
 	close(welcomeSocket);
+
+	fclose(logs);
 	closelog();
 
 	return 0;
