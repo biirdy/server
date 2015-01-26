@@ -17,8 +17,11 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include "srrp.h"
+
 MYSQL *conn;
 FILE* logs;
+int deamon = 0;
 
 void server_log(const char * type, const char * fmt, ...){
 	//format message
@@ -41,6 +44,9 @@ void server_log(const char * type, const char * fmt, ...){
 
 	fprintf(logs, "%s - Server - [%s] - %s\n", stime, type, msg);		//write to log
 	fflush(logs);
+
+	if(!deamon)
+		printf("%s - %s\n", type, msg);
 }
 
 static void deamonise(){
@@ -80,6 +86,8 @@ static void deamonise(){
     /* Change the working directory to the root directory */
     /* or another appropriated directory */
     chdir("/");
+
+    deamon = 1;
 
     server_log("Info", "Deamonised");
 }
@@ -160,13 +168,16 @@ int main(int argc, char ** argv) {
 
 	server_log("Info" , "Server Started");
 
-	deamonise();
+	if(argc == 3)
+		deamonise();
 
 	//connect to database
 	mysql_connect();
 
 	int welcomeSocket, newSocket;
 	char buffer[1024];
+	char recv_buff[1024];
+	char send_buff[1024];
 	struct sockaddr_in serverAddr, clientAddr;
 	struct sockaddr_storage serverStorage;
 	socklen_t addr_size;
@@ -210,6 +221,21 @@ int main(int argc, char ** argv) {
 			int id = mysql_add_sensor(addr);
 			server_log("Info" , "Sensor %s connected with id %d", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), id);
 			
+			//heartbeat loop
+			int hb_pid;
+			if((hb_pid = fork()) == 0){
+				struct srrp_request * hb_request;
+				hb_request = (struct srrp_request *) send_buff;
+				hb_request->id = 1;
+				hb_request->type = 1;
+
+				while(1){
+					printf("Sending hb request\n");
+					send(newSocket, send_buff, sizeof(send_buff), 0);
+					sleep(1);
+				}
+			}
+
 			//ping loop
 			int ping_pid;
 			if((ping_pid = fork()) == 0){
@@ -241,12 +267,23 @@ int main(int argc, char ** argv) {
 				if(ready == -1){
 					perror("select()\n");
 				}else if(ready){
-					bytes = recv(newSocket,buffer,13,0);
-					if(strcmp(buffer, "Heartbeat") == 0){
+					bytes = recv(newSocket,recv_buff, sizeof(recv_buff),0);
+
+					struct srrp_response * response;
+					response = (struct srrp_response *) recv_buff;
+					//response->id 		= 10;
+					
+					if(response->id == 0){
+						printf("Received hb response\n");
+					}else{
+						printf("Uncognised data type=%d\n", response->id);
+					}
+
+					/*if(strcmp(buffer, "Heartbeat") == 0){
 						//printf("Heartbeat from %s %d - %s\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid(), buffer);
 					}else{
 						//printf("XXX\n");
-					}
+					}*/
 				}else{
 					server_log("Info", "Sensor %d timedout", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size));
 					break;
@@ -264,6 +301,9 @@ int main(int argc, char ** argv) {
 
 			//kill ping loop (process)
 			kill(ping_pid, SIGKILL);
+
+			//kill hb loop (process)
+			kill(hb_pid, SIGKILL);
 
 			//kill comm (process)
 			exit(0);
