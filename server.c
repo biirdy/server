@@ -198,7 +198,6 @@ int main(int argc, char ** argv) {
 	}
 
 	/*---- Accept call creates a new socket for the incoming connection ----*/
-	
 
 	while(1){
 		newSocket = accept(welcomeSocket, (struct sockaddr *) &clientAddr, &addr_size);
@@ -248,14 +247,12 @@ int main(int argc, char ** argv) {
 					}else{
 						//printf("XXX\n");
 					}
-					//printf("%d\n", strcmp("Heartbeat", buffer));	
 				}else{
-					printf("Timeout\n");
+					server_log("Info", "Sensor %d timedout", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size));
 					break;
 				}
 					
 			}
-			//printf("Connection %s %d closed\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid());
 			
 			server_log("Info", "Sensor %d discconected", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size));
 			
