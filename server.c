@@ -157,6 +157,19 @@ int mysql_remove_sensor(int id){
    return 1;
 }
 
+int mysql_add_bw(int sensor_id, int bandwidth, int duration, int bytes){
+	char buff[200];
+	char * query = "insert into bw(sensor_id, bytes, duration, speed, time) values(%d, %d, %d, %d, FROM_UNIXTIME(%d))\n";
+
+	sprintf(buff, query, sensor_id, bytes, duration, bandwidth, time(NULL));
+
+	if(mysql_query(conn, buff)){
+		server_log("Error", "Database adding bandwidth - %s", mysql_error(conn));
+		return -1;
+	}
+	return 1;
+}
+
 int main(int argc, char ** argv) {
 
 	//signal handler to close log file
@@ -224,15 +237,16 @@ int main(int argc, char ** argv) {
 			//heartbeat loop
 			int hb_pid;
 			if((hb_pid = fork()) == 0){
+				//build request
 				struct srrp_request * hb_request;
 				hb_request = (struct srrp_request *) send_buff;
 				hb_request->id = 1;
-				hb_request->type = 1;
+				hb_request->type = SRRP_HB;
 
 				while(1){
 					printf("Sending hb request\n");
 					send(newSocket, send_buff, sizeof(send_buff), 0);
-					sleep(1);
+					sleep(1);			//second
 				}
 			}
 
@@ -246,7 +260,33 @@ int main(int argc, char ** argv) {
 				while(1){
 					server_log("Info", "Executing command %s", cmd);
 					system(cmd);
-					sleep(60);
+					sleep(60);			//minute
+				}
+			}
+
+			//iperf loop
+			int iperf_pid;
+			if((iperf_pid = fork()) == 0){
+				//initial sleep of 30 seconds
+				sleep(30);	
+
+				//build the request
+				struct srrp_request * tp_request;
+				tp_request = (struct srrp_request *) send_buff;
+				tp_request->id = 99;
+				tp_request->type = SRRP_BW;
+				tp_request->length = 1;
+
+				struct srrp_param size;
+				size.param = SRRP_SIZE;
+				size.value = 10;
+				tp_request->params[0] = size;
+
+				while(10){
+					printf("Sending iperf request\n");
+					server_log("Info", "Sending iperf request to sensor %d", id);
+					send(newSocket, send_buff, sizeof(send_buff), 0);
+					sleep(300);		//5 minutes
 				}
 			}
 
@@ -275,23 +315,48 @@ int main(int argc, char ** argv) {
 					
 					if(response->id == 0){
 						printf("Received hb response\n");
+					}else if(response->id == 99){
+						printf("Recevied ieprf response\n");
+						server_log("Info", "Recevied iperf response from sensor %d", id);
+
+						int i;
+						int bandwidth = 0;
+						int duration = 0;
+						int size = 0;
+						for(i = 0; i < response->length ; i++){
+							if(response->results[i].result == SRRP_RES_DUR){
+								duration = response->results[i].value;
+								printf("iperf duration = %d\n", response->results[i].value);
+							}else if(response->results[i].result == SRRP_RES_SIZE){
+								size = response->results[i].value;
+								printf("iperf size = %d\n", response->results[i].value);
+							}else if(response->results[i].result == SRRP_RES_BW){
+								bandwidth = response->results[i].value;
+								printf("iperf speed = %d\n", response->results[i].value);
+							}else{
+								printf("Unrecoginsed result type for iperf test");
+							}
+						}
+
+						//if all the results - add to db
+						if(bandwidth && duration && size){
+							mysql_add_bw(id, bandwidth, duration, size);
+						}else{
+							server_log("Error", "Response missing iperf results from sensor %d", id);
+						}
+
 					}else{
 						printf("Uncognised data type=%d\n", response->id);
 					}
 
-					/*if(strcmp(buffer, "Heartbeat") == 0){
-						//printf("Heartbeat from %s %d - %s\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid(), buffer);
-					}else{
-						//printf("XXX\n");
-					}*/
 				}else{
-					server_log("Info", "Sensor %d timedout", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size));
+					server_log("Info", "Sensor %s timedout", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size));
 					break;
 				}
 					
 			}
 			
-			server_log("Info", "Sensor %d discconected", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size));
+			server_log("Info", "Sensor %s discconected", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size));
 			
 			//mark as disconnected in db 
 			mysql_remove_sensor(id);
@@ -304,6 +369,8 @@ int main(int argc, char ** argv) {
 
 			//kill hb loop (process)
 			kill(hb_pid, SIGKILL);
+
+			kill(iperf_pid, SIGKILL);
 
 			//kill comm (process)
 			exit(0);
