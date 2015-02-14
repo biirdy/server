@@ -1,2 +1,7 @@
-gcc -o server $(mysql_config --cflags) server.c $(mysql_config --libs)
+gcc -c -I. -I/home/ubuntu/server/xmlrpc-c-1.33.16/include -I/home/ubuntu/server/xmlrpc-c-1.33.16/include $(mysql_config --cflags) server.c $(mysql_config --libs)
+
+gcc -o server $(mysql_config --cflags) server.o $(mysql_config --libs) /home/ubuntu/server/xmlrpc-c-1.33.16/src/libxmlrpc_server_abyss.a /home/ubuntu/server/xmlrpc-c-1.33.16/src/libxmlrpc_server.a /home/ubuntu/server/xmlrpc-c-1.33.16/lib/abyss/src/libxmlrpc_abyss.a  -lpthread /home/ubuntu/server/xmlrpc-c-1.33.16/src/libxmlrpc.a /home/ubuntu/server/xmlrpc-c-1.33.16/lib/expat/xmlparse/libxmlrpc_xmlparse.a /home/ubuntu/server/xmlrpc-c-1.33.16/lib/expat/xmltok/libxmlrpc_xmltok.a /home/ubuntu/server/xmlrpc-c-1.33.16/lib/libutil/libxmlrpc_util.a
+
+#gcc -o server $(mysql_config --cflags) server.c $(mysql_config --libs)
+
 ./server 172.31.32.126

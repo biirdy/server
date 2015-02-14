@@ -17,11 +17,72 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <sys/mman.h>	//not needed
+
+#include <pthread.h>
+
 #include "srrp.h"
+
+#include <xmlrpc-c/base.h>
+#include <xmlrpc-c/server.h>
+#include <xmlrpc-c/server_abyss.h>
 
 MYSQL *conn;
 FILE* logs;
 int deamon = 0;
+char recv_buff[1024];
+char send_buff[1024];
+
+/*
+* Dictionary to store id to socket 
+* http://stackoverflow.com/questions/4384359/quick-way-to-implement-dictionary-in-c
+*/
+struct nlist { /* table entry: */
+    struct nlist *next; /* next entry in chain */
+    int id; 	/* defined name */
+    int socket; /* replacement text */
+};
+
+#define HASHSIZE 101
+
+static struct nlist * hashtab[HASHSIZE];// = mmap(NULL, sizeof(struct nlist *), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);; /* pointer table */
+
+/* hash: form hash value for string s */
+unsigned hash(int id){
+    return id % HASHSIZE;
+}
+
+/* lookup: look for s in hashtab */
+struct nlist *lookup(int id){
+    struct nlist *np;
+
+    for (np = hashtab[hash(id)]; np != NULL; np = np->next){
+        if (id == np->id){
+           	return np; /* found */
+        }
+    }
+
+    return NULL; /* not found */
+}
+
+/* install: put (name, defn) in hashtab */
+struct nlist *install(int id, int socket){
+    struct nlist *np;
+    unsigned hashval;
+    if ((np = lookup(id)) == NULL) { /* not found */
+        np = (struct nlist *) malloc(sizeof(*np));
+        //np = mmap(NULL, sizeof(*np), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+      	np->id = id;
+        hashval = hash(id);
+        np->next = hashtab[hashval];
+       	hashtab[hashval] = np;
+
+        printf("Installing socket with hashval %d\n", hash(id));
+    }
+    //hashtab[hash(id)]->id = id;
+    hashtab[hash(id)]->socket = socket;
+    //return np;
+}
 
 void server_log(const char * type, const char * fmt, ...){
 	//format message
@@ -45,8 +106,217 @@ void server_log(const char * type, const char * fmt, ...){
 	fprintf(logs, "%s - Server - [%s] - %s\n", stime, type, msg);		//write to log
 	fflush(logs);
 
+	// if not deamon - print logs
 	if(!deamon)
 		printf("%s - %s\n", type, msg);
+}
+
+static xmlrpc_value * iperf_request(xmlrpc_env *   const envP,
+           xmlrpc_value * const paramArrayP,
+           void *         const serverInfo,
+           void *         const channelInfo) {
+
+	xmlrpc_int32 id, length;
+
+	//parse argument array
+    xmlrpc_decompose_value(envP, paramArrayP, "(ii)", &id, &length);
+    if (envP->fault_occurred){
+    	server_log("Error", "Could not parse iperf request argument array");
+    	return NULL;
+    }
+
+    //create request
+	struct srrp_request * tp_request;
+	tp_request = (struct srrp_request *) send_buff;
+	tp_request->id = 99;
+	tp_request->type = SRRP_BW;
+	tp_request->length = 1;
+
+	struct srrp_param dur;
+	dur.param = SRRP_DUR;
+	dur.value = (int) length;
+	tp_request->params[0] = dur;
+
+	//get socket
+	struct nlist * sck = lookup((int) id);
+	if(sck != NULL){
+		send(sck->socket, send_buff, sizeof(send_buff), 0);
+		server_log("Info", "RPC sending iperf request to sensor %d", id);
+		return xmlrpc_build_value(envP, "i", (xmlrpc_int32) 0);
+	}else{
+		server_log("Error", "RCP no reference to socket for id %d", id);
+		return xmlrpc_build_value(envP, "i", (xmlrpc_int32) 1);
+	}
+}
+
+static xmlrpc_value * ping_request(	xmlrpc_env * 	const envP,
+									xmlrpc_value * 	const paramArrayP,
+									void * 			const serverInfo,
+									void * 			const channelInfo){
+
+	xmlrpc_int32 id, iterations;
+
+	//parse argument array
+	xmlrpc_decompose_value(envP, paramArrayP, "(ii)", &id, &iterations);
+    if (envP->fault_occurred){
+    	server_log("Error", "Could not parse ping request argument array");
+    	return NULL;
+    }
+
+    //create request
+    struct srrp_request * rtt_request;
+    rtt_request = (struct srrp_request *) send_buff;
+    rtt_request-> id = 55;
+    rtt_request-> type = SRRP_RTT;
+    rtt_request-> length = 1;
+
+    struct srrp_param ittr;
+    ittr.param = SRRP_ITTR;
+    ittr.value = (int) iterations;
+    rtt_request->params[0] = ittr;
+
+    //get socket
+    struct nlist * sck = lookup((int) id);
+    if(sck != NULL){
+    	send(sck->socket, send_buff, sizeof(send_buff), 0);
+    	server_log("Info", "RPC sending ping request to sensor %d", id);
+    	return xmlrpc_build_value(envP, "i", (xmlrpc_int32) 0);
+    }else{
+    	server_log("Error", "RCP no reference to socket for id %d", id);
+		return xmlrpc_build_value(envP, "i", (xmlrpc_int32) 1);
+    }
+}
+
+static xmlrpc_value * udp_request(	xmlrpc_env * 	const envP,
+									xmlrpc_value * 	const paramArrayP,
+									void * 			const serverInfo,
+									void * 			const channelInfo){
+
+	xmlrpc_int32 id, speed, size, dur;
+
+	//parse argument array
+	xmlrpc_decompose_value(envP, paramArrayP, "(iiii)", &id, &speed, &size, &dur);
+    if (envP->fault_occurred){
+    	server_log("Error", "Could not parse udp request argument array");
+    	return NULL;
+    }
+
+    //create request
+    struct srrp_request * udp_request;
+    udp_request = (struct srrp_request *) send_buff;
+    udp_request-> id = 22;
+    udp_request-> type = SRRP_UDP;
+    udp_request-> length = 3;
+
+    struct srrp_param send_speed;
+    send_speed.param = SRRP_SPEED;
+    send_speed.value = (int) speed;
+    udp_request->params[0] = send_speed;
+
+    struct srrp_param dgram_size;
+   	dgram_size.param = SRRP_SIZE;
+    dgram_size.value = (int) size;
+    udp_request->params[1] = dgram_size; 
+
+    struct srrp_param duration;
+    duration.param = SRRP_DUR;
+    duration.value = (int) dur;
+    udp_request->params[2] = duration;
+
+    //get socket
+    struct nlist * sck = lookup((int) id);
+    if(sck != NULL){
+    	send(sck->socket, send_buff, sizeof(send_buff), 0);
+    	server_log("Info", "RPC sending udp request to sensor %d", id);
+    	return xmlrpc_build_value(envP, "i", (xmlrpc_int32) 0);
+    }else{
+    	server_log("Error", "RCP no reference to socket for id %d", id);
+		return xmlrpc_build_value(envP, "i", (xmlrpc_int32) 1);
+    }
+}
+
+/*
+* Start RPC server
+*/
+void * rpc_server(void * arg){
+	struct xmlrpc_method_info3 const ieprf_method = {
+        /* .methodName     = */ "iperf.request",
+        /* .methodFunction = */ &iperf_request,
+    };
+    struct xmlrpc_method_info3 const ping_method = {
+        /* .methodName     = */ "ping.request",
+        /* .methodFunction = */ &ping_request,
+    };
+	struct xmlrpc_method_info3 const udp_method = {
+        /* .methodName     = */ "udp.request",
+        /* .methodFunction = */ &udp_request,
+    };
+   	xmlrpc_server_abyss_parms serverparm;
+    xmlrpc_registry * registryP;
+    xmlrpc_env env;
+    xmlrpc_server_abyss_t * serverP;
+    xmlrpc_server_abyss_sig * oldHandlersP;
+
+    xmlrpc_env_init(&env);
+
+    xmlrpc_server_abyss_global_init(&env);
+
+    registryP = xmlrpc_registry_new(&env);
+    if (env.fault_occurred) {
+        server_log("Error", "xmlrpc_registry_new() failed.  %s", env.fault_string);
+        exit(1);
+    }
+
+    //add methods
+    xmlrpc_registry_add_method3(&env, registryP, &ieprf_method);
+    if (env.fault_occurred) {
+        server_log("Error", "xmlrpc_registry_add_method3() iperf_method failed.  %s", env.fault_string);
+        exit(1);
+    }
+    xmlrpc_registry_add_method3(&env, registryP, &ping_method);
+    if (env.fault_occurred) {
+        server_log("Error", "xmlrpc_registry_add_method3() ping_method failed.  %s", env.fault_string);
+        exit(1);
+    }
+    xmlrpc_registry_add_method3(&env, registryP, &udp_method);
+    if (env.fault_occurred) {
+        server_log("Error", "xmlrpc_registry_add_method3() udp_method failed.  %s", env.fault_string);
+        exit(1);
+    }
+
+    serverparm.config_file_name = NULL;   /* Select the modern normal API */
+    serverparm.registryP        = registryP;
+    serverparm.port_number      = 8080;
+    serverparm.log_file_name    = "/var/log/tnp/xmlrpc_log";
+
+    xmlrpc_server_abyss_create(&env, &serverparm, XMLRPC_APSIZE(registryP), &serverP);
+    //xmlrpc_server_abyss_setup_sig(&env, serverP, &oldHandlersP);
+
+    //while(1){}
+
+    server_log("Info", "Started XML-RPC server");
+
+    xmlrpc_server_abyss_run_server(&env, serverP);
+
+    if (env.fault_occurred) {
+        printf("xmlrpc_server_abyss() failed.  %s\n", env.fault_string);
+        exit(1);
+    }
+
+    //xmlrpc_server_abyss_restore_sig(oldHandlersP);
+    //free(oldHandlersP);
+
+    server_log("Info", "Stopping XML-RPC server");
+
+    xmlrpc_server_abyss_destroy(serverP);
+
+    xmlrpc_server_abyss_global_term();
+
+    /*xmlrpc_server_abyss(&env, &serverparm, XMLRPC_APSIZE(log_file_name));
+    if (env.fault_occurred) {
+        printf("xmlrpc_server_abyss() failed.  %s\n", env.fault_string);
+        exit(1);
+    }*/
 }
 
 static void deamonise(){
@@ -78,7 +348,6 @@ static void deamonise(){
     /* Success: Let the parent terminate */
     if (pid > 0)
         exit(EXIT_SUCCESS);
-    
 
     /* Set new file permissions */
     umask(0);
@@ -170,27 +439,45 @@ int mysql_add_bw(int sensor_id, int bandwidth, int duration, int bytes){
 	return 1;
 }
 
+int mysql_add_rtt(int sensor_id, int min, int max, int avg, int dev){
+	char buff[200];
+	char * query = "insert into rtts(sensor_id, min, max, avg, dev, time) values(%d, %d, %d, %d, %d, FROM_UNIXTIME(%d))\n";
+
+	sprintf(buff, query, sensor_id, min, max, avg, dev, time(NULL));
+
+	if(mysql_query(conn, buff)){
+		server_log("Error", "Database adding bandwidth - %s", mysql_error(conn));
+		return -1;
+	}
+	return 1;
+}
+
 int main(int argc, char ** argv) {
 
 	//signal handler to close log file
 	signal(SIGINT, closeLog);
 	signal(SIGTERM, closeLog);
 
+	//casue zombies to be reaped automatically 
+	if (signal(SIGCHLD, SIG_IGN) == SIG_ERR) {
+ 		perror(0);
+  		exit(1);
+	}
+
 	//log files
 	logs = fopen("/var/log/tnp/server.log", "a+");
 
 	server_log("Info" , "Server Started");
 
+	//make deamon
 	if(argc == 3)
 		deamonise();
 
 	//connect to database
 	mysql_connect();
 
-	int welcomeSocket, newSocket;
+	int welcomeSocket;//, newSocket;
 	char buffer[1024];
-	char recv_buff[1024];
-	char send_buff[1024];
 	struct sockaddr_in serverAddr, clientAddr;
 	struct sockaddr_storage serverStorage;
 	socklen_t addr_size;
@@ -219,21 +506,30 @@ int main(int argc, char ** argv) {
 		server_log("Info" , "Listening on %s", argv[1]);
 	}else{
 		server_log("Error" , "Failed to listening on %s", argv[1]);
+		exit(1);
 	}
 
-	/*---- Accept call creates a new socket for the incoming connection ----*/
+	//start rpc server in thread
+	pthread_t pth;
+	pthread_create(&pth, NULL, rpc_server, (void * ) 1);
 
+	//listen loop
 	while(1){
-		newSocket = accept(welcomeSocket, (struct sockaddr *) &clientAddr, &addr_size);
-		if(fork() == 0){
-			char addr[15];
-			//printf("Connected %s with pid %d\n", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), (int) getpid());
-			inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size);
+		/*---- Accept call creates a new socket for the incoming connection ----*/
+		int newSocket = accept(welcomeSocket, (struct sockaddr *) &clientAddr, &addr_size);
 
-			//add to db 
-			int id = mysql_add_sensor(addr);
-			server_log("Info" , "Sensor %s connected with id %d", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), id);
-			
+		char addr[15];
+		inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size);
+
+		//add to db 
+		int id = mysql_add_sensor(addr);
+		server_log("Info" , "Sensor %s connected with id %d", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), id);
+
+		//remember socket
+		install(id, newSocket);
+
+		//receive loop - should start loops outside
+		if(fork() == 0){
 			//heartbeat loop
 			int hb_pid;
 			if((hb_pid = fork()) == 0){
@@ -253,15 +549,27 @@ int main(int argc, char ** argv) {
 			//ping loop
 			int ping_pid;
 			if((ping_pid = fork()) == 0){
-				//call initial ping 
-				char * command = "/home/ubuntu/tools/ping %d %d &";
-				char cmd[50];
-				sprintf(cmd, command, id, 5);
-				while(1){
-					server_log("Info", "Executing command %s", cmd);
-					system(cmd);
-					sleep(60);			//minute
+				//initial sleep of 10 seconds
+				sleep(10);	
+
+				//build the request
+				struct srrp_request * rtt_request;
+				rtt_request = (struct srrp_request *) send_buff;
+				rtt_request->id = 55;
+				rtt_request->type = SRRP_RTT;
+				rtt_request->length = 1;
+
+				struct srrp_param ittr;
+				ittr.param = SRRP_ITTR;
+				ittr.value = 5;
+				rtt_request->params[0] = ittr;
+
+				while(10){
+					server_log("Info", "Sending ping request to sensor %d", id);
+					send(newSocket, send_buff, sizeof(send_buff), 0);
+					sleep(60);		//1 minutes
 				}
+
 			}
 
 			//iperf loop
@@ -277,13 +585,12 @@ int main(int argc, char ** argv) {
 				tp_request->type = SRRP_BW;
 				tp_request->length = 1;
 
-				struct srrp_param size;
-				size.param = SRRP_SIZE;
-				size.value = 10;
-				tp_request->params[0] = size;
+				struct srrp_param dur;
+				dur.param = SRRP_DUR;
+				dur.value = 10;
+				tp_request->params[0] = dur;
 
 				while(10){
-					printf("Sending iperf request\n");
 					server_log("Info", "Sending iperf request to sensor %d", id);
 					send(newSocket, send_buff, sizeof(send_buff), 0);
 					sleep(300);		//5 minutes
@@ -299,12 +606,13 @@ int main(int argc, char ** argv) {
 				FD_ZERO(&rfds);
 				FD_SET (newSocket, &rfds);
 
-				tv.tv_sec = 5;
+				tv.tv_sec = 15;
 				tv.tv_usec = 0;
 				
 				int ready = select(newSocket + 1, &rfds, NULL, NULL, &tv);
 				
 				if(ready == -1){
+					server_log("Error", "select()");
 					perror("select()\n");
 				}else if(ready){
 					bytes = recv(newSocket,recv_buff, sizeof(recv_buff),0);
@@ -316,7 +624,6 @@ int main(int argc, char ** argv) {
 					if(response->id == 0){
 						printf("Received hb response\n");
 					}else if(response->id == 99){
-						printf("Recevied ieprf response\n");
 						server_log("Info", "Recevied iperf response from sensor %d", id);
 
 						int i;
@@ -326,15 +633,15 @@ int main(int argc, char ** argv) {
 						for(i = 0; i < response->length ; i++){
 							if(response->results[i].result == SRRP_RES_DUR){
 								duration = response->results[i].value;
-								printf("iperf duration = %d\n", response->results[i].value);
+								//printf("iperf duration = %d\n", response->results[i].value);
 							}else if(response->results[i].result == SRRP_RES_SIZE){
 								size = response->results[i].value;
-								printf("iperf size = %d\n", response->results[i].value);
+								//printf("iperf size = %d\n", response->results[i].value);
 							}else if(response->results[i].result == SRRP_RES_BW){
 								bandwidth = response->results[i].value;
-								printf("iperf speed = %d\n", response->results[i].value);
+								//printf("iperf speed = %d\n", response->results[i].value);
 							}else{
-								printf("Unrecoginsed result type for iperf test");
+								server_log("Error", "Unrecoginsed result type for iperf test - %d", response->results[i].result);
 							}
 						}
 
@@ -345,8 +652,39 @@ int main(int argc, char ** argv) {
 							server_log("Error", "Response missing iperf results from sensor %d", id);
 						}
 
+					}else if(response->id == 55){
+						server_log("Info", "Received ping response");
+
+						int i;
+						int avg = 0;
+						int max = 0;
+						int min = 0;
+						int dev = 0;
+
+						for(i = 0; i < response->length ; i++){
+							if(response->results[i].result == SRRP_RES_RTTMAX){
+								max = response->results[i].value;
+							}else if(response->results[i].result == SRRP_RES_RTTMIN){
+								min = response->results[i].value;
+							}else if(response->results[i].result == SRRP_RES_RTTDEV){
+								dev = response->results[i].value;
+							}else if(response->results[i].result == SRRP_RES_RTTAVG){
+								avg = response->results[i].value;
+							}else{
+								server_log("Error", "Unrecoginsed result type for ping test - %d", response->results[i].result);
+							}
+						}
+
+						if(avg && min && dev && max){
+							mysql_add_rtt(id, min, max, avg, dev);
+						}else{
+							server_log("Error", "Response missing ping results from sensor %d", id);
+						}
+
+					}else if(response->id == 22){
+						server_log("Info", "Received udp iperf response");
 					}else{
-						printf("Uncognised data type=%d\n", response->id);
+						server_log("Error", "Uncognised data type - %d", response->id);
 					}
 
 				}else{
@@ -370,10 +708,11 @@ int main(int argc, char ** argv) {
 			//kill hb loop (process)
 			kill(hb_pid, SIGKILL);
 
+			//kill iperf loop
 			kill(iperf_pid, SIGKILL);
 
 			//kill comm (process)
-			exit(0);
+			_exit(0);
 		}
 	}
 
