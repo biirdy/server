@@ -192,10 +192,10 @@ static xmlrpc_value * udp_request(	xmlrpc_env * 	const envP,
 									void * 			const serverInfo,
 									void * 			const channelInfo){
 
-	xmlrpc_int32 id, speed, size, dur;
+	xmlrpc_int32 id, speed, size, dur, dscp;
 
 	//parse argument array
-	xmlrpc_decompose_value(envP, paramArrayP, "(iiii)", &id, &speed, &size, &dur);
+	xmlrpc_decompose_value(envP, paramArrayP, "(iiiii)", &id, &speed, &size, &dur, &dscp);
     if (envP->fault_occurred){
     	server_log("Error", "Could not parse udp request argument array");
     	return NULL;
@@ -206,7 +206,7 @@ static xmlrpc_value * udp_request(	xmlrpc_env * 	const envP,
     udp_request = (struct srrp_request *) send_buff;
     udp_request-> id = 22;
     udp_request-> type = SRRP_UDP;
-    udp_request-> length = 3;
+    udp_request-> length = 4;
 
     struct srrp_param send_speed;
     send_speed.param = SRRP_SPEED;
@@ -222,6 +222,11 @@ static xmlrpc_value * udp_request(	xmlrpc_env * 	const envP,
     duration.param = SRRP_DUR;
     duration.value = (int) dur;
     udp_request->params[2] = duration;
+
+    struct srrp_param qos;
+    qos.param = SRRP_DSCP;
+    qos.value = (int) dscp;
+    udp_request->params[3] = qos;
 
     //get socket
     struct nlist * sck = lookup((int) id);
@@ -447,6 +452,19 @@ int mysql_add_rtt(int sensor_id, int min, int max, int avg, int dev){
 
 	if(mysql_query(conn, buff)){
 		server_log("Error", "Database adding bandwidth - %s", mysql_error(conn));
+		return -1;
+	}
+	return 1;
+}
+
+int mysql_add_udp(int sensor_id, int size, int dur, int bw, int jit, int pkls, int dscp, int speed){
+	char buff[200];
+	char * query = "insert into udps(sensor_id, size, duration, bw, jitter, packet_loss, dscp_flag , send_bw, time) values(%d, %d, %d, %d, %d, %d, %d, %d, FROM_UNIXTIME(%d))\n";
+
+	sprintf(buff, query, sensor_id, size, dur, bw, jit, pkls, dscp, speed, time(NULL));
+
+	if(mysql_query(conn, buff)){
+		server_log("Error", "Database adding udp - %s", mysql_error(conn));
 		return -1;
 	}
 	return 1;
@@ -683,6 +701,37 @@ int main(int argc, char ** argv) {
 
 					}else if(response->id == 22){
 						server_log("Info", "Received udp iperf response");
+
+						int i, dur, size, speed, dscp, bw, jit, pkls;
+
+						//parse results
+						for(i=0; i < response->length; i++){
+							if(response->results[i].result == SRRP_RES_DUR){
+								dur = response->results[i].value;
+							}else if(response->results[i].result == SRRP_RES_SIZE){
+								size = response->results[i].value;
+							}else if(response->results[i].result == SRRP_RES_BW){
+								bw = response->results[i].value;
+							}else if(response->results[i].result == SRRP_RES_JTR){
+								jit = response->results[i].value;
+							}else if(response->results[i].result == SRRP_RES_PKLS){
+								pkls = response->results[i].value;
+							}else if(response->results[i].result == SRRP_RES_SPEED){
+								speed = response->results[i].value;
+							}else if(response->results[i].result == SRRP_RES_DSCP){
+								dscp = response->results[i].value;
+							}else{
+								server_log("Error", "Unrecognised result type for udp iperf");
+							}
+						}
+
+						//add to db
+						if(dur && size && bw && jit && pkls && speed){
+							mysql_add_udp(id, size, dur, bw, jit, pkls, dscp, speed);
+						}else{
+							server_log("Error", "Response missing udp iperf results from sensor %d", id);
+						}
+
 					}else{
 						server_log("Error", "Uncognised data type - %d", response->id);
 					}

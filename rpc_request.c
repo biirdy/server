@@ -48,7 +48,8 @@ int main(int argc, char ** argv) {
         //speed
         //size
         //duration
-        resultP = xmlrpc_client_call(&env, serverUrl, methodName, "(iiii)", (xmlrpc_int32) atoi(argv[2]), (xmlrpc_int32) atoi(argv[3]), (xmlrpc_int32) atoi(argv[4]), (xmlrpc_int32) atoi(argv[5]));
+        //dscp
+        resultP = xmlrpc_client_call(&env, serverUrl, methodName, "(iiiii)", (xmlrpc_int32) atoi(argv[2]), (xmlrpc_int32) atoi(argv[3]), (xmlrpc_int32) atoi(argv[4]), (xmlrpc_int32) atoi(argv[5]), (xmlrpc_int32) atoi(argv[6]));
     }else{
         printf("Unrecognised request type\n");
     }
