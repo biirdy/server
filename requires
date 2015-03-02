@@ -18,9 +18,9 @@ cd xmlrpc-c-1.33.16
 make
 make install
 
+cd ../
+
 #move to src and remove tmp files and directories
 cp -R xmlrpc-c-1.33.16 /usr/local/src/xmlrpc-c-1.33.16
-rm xmlrpc-c-1.33.16
-rm -R xmlrpc-c-1.33.16
-
-cd ../
+rm xmlrpc-c-1.33.16.tgz
+rm -R xmlrpc-c-1.33.16/
