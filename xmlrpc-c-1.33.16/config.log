@@ -48,13 +48,13 @@ configure:2430: result: yes
 configure:2442: checking whether make sets $(MAKE)
 configure:2464: result: yes
 configure:2494: checking for working aclocal
-configure:2505: result: missing
+configure:2501: result: found
 configure:2509: checking for working autoconf
-configure:2520: result: missing
+configure:2516: result: found
 configure:2524: checking for working automake
-configure:2535: result: missing
+configure:2531: result: found
 configure:2539: checking for working autoheader
-configure:2550: result: missing
+configure:2546: result: found
 configure:2554: checking for working makeinfo
 configure:2565: result: missing
 configure:2575: checking build system type
@@ -668,7 +668,7 @@ configure:5351: $? = 0
 configure:5351: result: yes
 configure:5351: checking for __strtoll
 configure:5351: gcc -o conftest -g -O2   conftest.c  >&5
-/tmp/cciFoXHo.o: In function `main':
+/tmp/ccQAqTuZ.o: In function `main':
 /home/ubuntu/server/xmlrpc-c-1.33.16/conftest.c:67: undefined reference to `__strtoll'
 collect2: error: ld returned 1 exit status
 configure:5351: $? = 1
@@ -746,7 +746,7 @@ configure: failed program was:
 configure:5351: result: no
 configure:5351: checking for __strtoull
 configure:5351: gcc -o conftest -g -O2   conftest.c  >&5
-/tmp/ccxXb5pr.o: In function `main':
+/tmp/cch4axSZ.o: In function `main':
 /home/ubuntu/server/xmlrpc-c-1.33.16/conftest.c:67: undefined reference to `__strtoull'
 collect2: error: ld returned 1 exit status
 configure:5351: $? = 1
@@ -847,7 +847,7 @@ configure:5409: $? = 0
 configure:5409: result: yes
 configure:5420: checking for stricmp
 configure:5420: gcc -o conftest -g -O2   conftest.c  >&5
-/tmp/cctu4zUF.o: In function `main':
+/tmp/cc4BdhJg.o: In function `main':
 /home/ubuntu/server/xmlrpc-c-1.33.16/conftest.c:72: undefined reference to `stricmp'
 collect2: error: ld returned 1 exit status
 configure:5420: $? = 1
@@ -930,7 +930,7 @@ configure: failed program was:
 configure:5420: result: no
 configure:5431: checking for _stricmp
 configure:5431: gcc -o conftest -g -O2   conftest.c  >&5
-/tmp/cc0rmegJ.o: In function `main':
+/tmp/ccLxRifj.o: In function `main':
 /home/ubuntu/server/xmlrpc-c-1.33.16/conftest.c:72: undefined reference to `_stricmp'
 collect2: error: ld returned 1 exit status
 configure:5431: $? = 1
@@ -1138,14 +1138,14 @@ ac_cv_type_size_t=yes
 ## ----------------- ##
 
 ABYSS_SUBDIR='abyss'
-ACLOCAL='/home/ubuntu/server/xmlrpc-c-1.33.16/missing aclocal'
+ACLOCAL='aclocal'
 AR='ar'
 ASYNCH_CLIENT='asynch_client'
 ATTR_UNUSED='__attribute__((__unused__))'
 AUTH_CLIENT='auth_client'
-AUTOCONF='/home/ubuntu/server/xmlrpc-c-1.33.16/missing autoconf'
-AUTOHEADER='/home/ubuntu/server/xmlrpc-c-1.33.16/missing autoheader'
-AUTOMAKE='/home/ubuntu/server/xmlrpc-c-1.33.16/missing automake'
+AUTOCONF='autoconf'
+AUTOHEADER='autoheader'
+AUTOMAKE='automake'
 BUILDDIR='/home/ubuntu/server/xmlrpc-c-1.33.16'
 BUILD_TOOLS='yes'
 BUILD_XMLRPC_PSTREAM='no'

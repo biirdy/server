@@ -1,0 +1,6 @@
+git clone https://github.com/biirdy/console.git
+
+#should check apache is installed
+cp -r console /var/www/html
+
+
