@@ -1,4 +1,4 @@
-##install pre-requisits
+##install prerequisite
 
 ##LAMP server
 apt-get install apache2 -y
@@ -9,15 +9,18 @@ apt-get install libmysqlclient-dev -y
 apt-get install libcurl4-openssl-dev -y
 
 #xml rpc
-rm -R xmlrpc-c-1.33.16
-
 wget http://sourceforge.net/projects/xmlrpc-c/files/Xmlrpc-c%20Super%20Stable/1.33.16/xmlrpc-c-1.33.16.tgz
 tar -xvzf xmlrpc-c-1.33.16.tgz
 
 cd xmlrpc-c-1.33.16
   
-./configre
+./configure
 make
 make install
+
+#move to src and remove tmp files and directories
+cp -R xmlrpc-c-1.33.16 /usr/local/src/xmlrpc-c-1.33.16
+rm xmlrpc-c-1.33.16
+rm -R xmlrpc-c-1.33.16
 
 cd ../
