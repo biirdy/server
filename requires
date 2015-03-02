@@ -3,10 +3,21 @@
 ##LAMP server
 apt-get install apache2 -y
 apt-get install mysql-server-5.6 -y
-apt-get install php5 libapache2-mod-php5
-apt-get install php5-mysqlnd
+apt-get install php5 libapache2-mod-php5 -y
+apt-get install php5-mysqlnd -y
+apt-get install libmysqlclient-dev -y
+apt-get install libcurl4-openssl-dev -y
 
 #xml rpc
-xmlrpc-c-1.33.16/configre
-xmlrpc-c-1.33.16/make
-xmlrpc-c-1.33.16/make install
+rm -R xmlrpc-c-1.33.16
+
+wget http://sourceforge.net/projects/xmlrpc-c/files/Xmlrpc-c%20Super%20Stable/1.33.16/xmlrpc-c-1.33.16.tgz
+tar -xvzf xmlrpc-c-1.33.16.tgz
+
+cd xmlrpc-c-1.33.16
+  
+./configre
+make
+make install
+
+cd ../
