@@ -50,6 +50,11 @@ int main(int argc, char ** argv) {
         //duration
         //dscp
         resultP = xmlrpc_client_call(&env, serverUrl, methodName, "(iiiii)", (xmlrpc_int32) atoi(argv[2]), (xmlrpc_int32) atoi(argv[3]), (xmlrpc_int32) atoi(argv[4]), (xmlrpc_int32) atoi(argv[5]), (xmlrpc_int32) atoi(argv[6]));
+    }else if(strcmp(argv[1], "dns") == 0){
+        methodName = "dns.request";
+
+        //sensor id
+        resultP = xmlrpc_client_call(&env, serverUrl, methodName, "(i)", (xmlrpc_int32) atoi(argv[2]));    
     }else{
         printf("Unrecognised request type\n");
     }

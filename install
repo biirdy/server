@@ -1,0 +1,10 @@
+#executables
+cp bin/rpc_request /usr/bin/network-sensor-server-rpc-client
+cp bin/server /usr/bin/network-sensor-server
+
+#config file
+mkdir -p /etc/network-sensor-server 
+cp config/config.ini /etc/network-sensor-server/config.ini
+
+#add service 
+cp service/network-sensor-server /etc/init.d/network-sensor-server

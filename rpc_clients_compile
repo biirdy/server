@@ -1,4 +1,0 @@
-gcc -c -I. -I/home/ubuntu/server/xmlrpc-c-1.33.16/include -I/home/ubuntu/server/xmlrpc-c-1.33.16/include rpc_request.c
-
-gcc -o rpc_request rpc_request.o /home/ubuntu/server/xmlrpc-c-1.33.16/src/libxmlrpc_client.a /home/ubuntu/server/xmlrpc-c-1.33.16/src/libxmlrpc.a /home/ubuntu/server/xmlrpc-c-1.33.16/lib/expat/xmlparse/libxmlrpc_xmlparse.a /home/ubuntu/server/xmlrpc-c-1.33.16/lib/expat/xmltok/libxmlrpc_xmltok.a /home/ubuntu/server/xmlrpc-c-1.33.16/lib/libutil/libxmlrpc_util.a -L/usr/lib/x86_64-linux-gnu -lcurl   
-

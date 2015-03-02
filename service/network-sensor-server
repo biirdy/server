@@ -1,0 +1,73 @@
+#!/bin/bash
+#
+# chkconfig: 35 90 12
+# description: Foo server
+#
+# Get function from functions library
+# Start the service FOO
+EXE=/usr/bin/network-sensor-server
+PID=/var/run/network-sensor-server.pid
+CONF=/etc/network-sensor-server/config.ini
+
+if ! test -e $EXE; then
+	echo "No executable"
+	exit 1
+fi
+
+. /lib/lsb/init-functions
+
+start() {
+	if test -e $PID; then
+                echo "Instance already running"
+		cat $PID
+		exit 1
+    	fi
+        echo "Starting TNP server: "
+        if ! start-stop-daemon --start --quiet --oknodo -m -p $PID --exec $EXE -- -D; then
+		log_end_msg 1
+                exit 1
+        fi
+	source $CONF 2> /dev/null 
+	cat $PID
+	iperf -s -p $tcp_iperf_port > /var/log/tnp/tcp_iperf_log &
+	iperf -s -u -p $udp_iperf_port > /var/log/tnp/udp_iperf_log &
+        log_end_msg 0
+	exit 0      
+}
+# Restart the service FOO
+stop() {
+	if ! test -e $PID; then
+		echo "No running instance"
+		exit 1
+	fi
+        echo "Stopping TNP server"
+	rm $PID
+	pkill iperf
+        pkill -SIGTERM sensor	#also kills self
+}
+### main logic ###
+case "$1" in
+  start)
+        start
+        ;;
+  stop)
+        stop
+        ;;
+  status)
+        if test -e $PID; then
+		echo -n "Running:"
+		cat $PID
+		exit 1
+	fi
+	echo "No instance running"
+	exit 0
+        ;;
+  restart|reload|condrestart)
+        stop
+        start
+        ;;
+  *)
+        echo $"Usage: $0 {start|stop|restart|reload|status}"
+        exit 1
+esac
+exit 0
