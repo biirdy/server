@@ -749,7 +749,7 @@ int main(int argc, char ** argv) {
 
                     server_log("Info", "Sending ping request to sensor %d", id);
                     send(newSocket, send_buff, sizeof(send_buff), 0);
-                    sleep(60);      //1 minutes
+                    sleep(10);      //1 minutes
                 }
 
             }
@@ -757,8 +757,8 @@ int main(int argc, char ** argv) {
             //iperf loop
             int iperf_pid;
             if((iperf_pid = fork()) == 0){
-                //initial sleep of 30 seconds
-                sleep(60);  
+                //initial sleep of 1 minute 
+                sleep(30);  
 
                 //build the request
                 struct srrp_request * tp_request;
@@ -778,7 +778,7 @@ int main(int argc, char ** argv) {
 
                     server_log("Info", "Sending iperf request to sensor %d", id);
                     send(newSocket, send_buff, sizeof(send_buff), 0);
-                    sleep(300);     //5 minutes
+                    sleep(1800);     //hal hour
                 }
             }
 
@@ -786,7 +786,7 @@ int main(int argc, char ** argv) {
             int dns_pid;
             if((dns_pid = fork()) == 0){
                 //inital sleep
-                sleep(5);
+                sleep(50);
 
                 //build the request
                 struct srrp_request * dns_request;
