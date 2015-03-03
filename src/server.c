@@ -509,16 +509,25 @@ int mysql_add_sensor(char * ip){
 }
 
 int mysql_sensor_connected(int id){
+    MYSQL * contd;
+    contd = mysql_init(NULL);
+
+    if (!mysql_real_connect(contd, config.mysql_addr,
+        config.mysql_usr, config.mysql_pass, "tnp", 0, NULL, 0)) {
+        server_log("Error", "Database Connection - %s", mysql_error(contd));
+        return 0;
+    }
+
     char query[200];
 
     sprintf(query, "select active from sensors where sensor_id=%d", id);
 
-    if(mysql_query(conn, query)){
-        server_log("Error", "Databased checking connected sensor - %s", mysql_error(conn));
+    if(mysql_query(contd, query)){
+        server_log("Error", "Databased checking connected sensor - %s", mysql_error(contd));
         return -1;
     }
 
-    MYSQL_RES *result = mysql_store_result(conn);
+    MYSQL_RES *result = mysql_store_result(contd);
   
     if (result == NULL) {
         server_log("Error", "Database empty results checking connected sensor");
@@ -529,6 +538,7 @@ int mysql_sensor_connected(int id){
         
     int active = atoi(row[0]);
     mysql_free_result(result);
+    mysql_close(contd);
 
     return active;
 }
