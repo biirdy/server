@@ -749,7 +749,7 @@ int main(int argc, char ** argv) {
 
                     server_log("Info", "Sending ping request to sensor %d", id);
                     send(newSocket, send_buff, sizeof(send_buff), 0);
-                    sleep(10);      //1 minutes
+                    sleep(60);      //1 minutes
                 }
 
             }
@@ -861,7 +861,7 @@ int main(int argc, char ** argv) {
                         }
 
                     }else if(response->id == 55){
-                        server_log("Info", "Received ping response");
+                        server_log("Info", "Received ping response from sensor %d", id);
 
                         int i;
                         int avg = 0;
@@ -883,14 +883,14 @@ int main(int argc, char ** argv) {
                             }
                         }
 
-                        if(avg && min && dev && max){
+                        if(avg && min && max){
                             mysql_add_rtt(id, min, max, avg, dev);
                         }else{
                             server_log("Error", "Response missing ping results from sensor %d", id);
                         }
 
                     }else if(response->id == 22){
-                        server_log("Info", "Received udp iperf response");
+                        server_log("Info", "Received udp iperf response from sensor %d", id);
 
                         int i, dur, size, speed, dscp, bw, jit, pkls;
 
