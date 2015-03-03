@@ -1,6 +1,10 @@
 git clone https://github.com/biirdy/console.git
 
 #should check apache is installed
+rm -R /var/www/html
 cp -r console /var/www/html
 
+rm -R console/
+
+./sudo-www
 
