@@ -8,3 +8,6 @@ cp config/config.ini /etc/network-sensor-server/config.ini
 
 #add service 
 cp service/network-sensor-server /etc/init.d/network-sensor-server
+
+#create log files
+mkdir -p /var/log/network-sensor-server

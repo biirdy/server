@@ -6,5 +6,12 @@ cp -r console /var/www/html
 
 rm -R console/
 
+#make www-data sudo user for PHP 
 ./sudo-www
+
+#create log file and symbolic link
+touch /var/log/network-sensor-server/server.log
+ln -s /var/log/network-sensor-server/server.log /var/www/html/logs/server.log
+
+
 
