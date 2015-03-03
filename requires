@@ -7,6 +7,8 @@ apt-get install php5 libapache2-mod-php5 -y
 apt-get install php5-mysqlnd -y
 apt-get install libmysqlclient-dev -y
 apt-get install libcurl4-openssl-dev -y
+apt-get install g++ -y
+apt-get install make
 
 #tools
 apt-get install iperf
