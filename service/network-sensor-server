@@ -29,8 +29,8 @@ start() {
         fi
 	source $CONF 2> /dev/null 
 	cat $PID
-	iperf -s -p $tcp_iperf_port > /var/log/tnp/tcp_iperf_log &
-	iperf -s -u -p $udp_iperf_port > /var/log/tnp/udp_iperf_log &
+	iperf -s -p $tcp_iperf_port > /var/log/network-sensor-server/tcp_iperf_log &
+	iperf -s -u -p $udp_iperf_port > /var/log/network-sensor-server/udp_iperf_log &
         log_end_msg 0
 	exit 0      
 }

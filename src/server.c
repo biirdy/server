@@ -389,7 +389,7 @@ void * rpc_server(void * arg){
     serverparm.config_file_name = NULL;   /* Select the modern normal API */
     serverparm.registryP        = registryP;
     serverparm.port_number      = config.rcp_port;
-    serverparm.log_file_name    = "/var/log/tnp/xmlrpc_log";
+    serverparm.log_file_name    = "/var/log/network-sensor-server/xmlrpc_log";
 
     xmlrpc_server_abyss_create(&env, &serverparm, XMLRPC_APSIZE(registryP), &serverP);
     //xmlrpc_server_abyss_setup_sig(&env, serverP, &oldHandlersP);
@@ -625,7 +625,7 @@ int main(int argc, char ** argv) {
     }
 
     //log files
-    logs = fopen("/var/log/tnp/server.log", "w+");
+    logs = fopen("/var/log/network-sensor-server/server.log", "w+");
 
     server_log("Info" , "Server Started");
 

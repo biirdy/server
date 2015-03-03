@@ -11,7 +11,9 @@ rm -R console/
 
 #create log file and symbolic link
 touch /var/log/network-sensor-server/server.log
+rm /var/www/html/logs/server.log
 ln -s /var/log/network-sensor-server/server.log /var/www/html/logs/server.log
+
 
 
 
