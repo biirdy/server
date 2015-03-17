@@ -56,6 +56,11 @@ typedef struct{
     //iperf
     int tcp_iperf_port;
     int udp_iperf_port;
+
+	//interval
+	int rtt_interval;
+	int tcp_bw_interval;
+	int dns_interval;
 } configuration;
 configuration config;
 
@@ -82,6 +87,12 @@ static int handler(void* user, const char* section, const char* name, const char
         pconfig->tcp_iperf_port = atoi(value);
     } else if (MATCH("iperf", "udp_iperf_port")) {
         pconfig->udp_iperf_port = atoi(value);
+    } else if (MATCH("interval", "rtt_interval")) {
+        pconfig->rtt_interval = atoi(value);
+    } else if (MATCH("interval", "tcp_bw_interval")) {
+        pconfig->tcp_bw_interval = atoi(value);
+    } else if (MATCH("interval", "dns_interval")) {
+        pconfig->dns_interval = atoi(value);
     } else {
         return 0;  /* unknown section/name, error */
     }
@@ -749,7 +760,7 @@ int main(int argc, char ** argv) {
 
                     server_log("Info", "Sending ping request to sensor %d", id);
                     send(newSocket, send_buff, sizeof(send_buff), 0);
-                    sleep(60);      //1 minutes
+                    sleep(config.rtt_interval);      
                 }
 
             }
@@ -778,7 +789,7 @@ int main(int argc, char ** argv) {
 
                     server_log("Info", "Sending iperf request to sensor %d", id);
                     send(newSocket, send_buff, sizeof(send_buff), 0);
-                    sleep(1800);     //hal hour
+                    sleep(config.tcp_bw_interval);     
                 }
             }
 
@@ -801,7 +812,7 @@ int main(int argc, char ** argv) {
 
                     server_log("Info", "Sending dns request to sensor %d", id);
                     send(newSocket, send_buff, sizeof(send_buff), 0);
-                    sleep(60);      //1 minute
+                    sleep(config.dns_interval);      
                 }
             }
 
@@ -916,7 +927,7 @@ int main(int argc, char ** argv) {
                         }
 
                         //add to db
-                        if(dur && size && bw && jit && pkls && speed){
+                        if(dur && size && bw && speed){
                             mysql_add_udp(id, size, dur, bw, jit, pkls, dscp, speed);
                         }else{
                             server_log("Error", "Response missing udp iperf results from sensor %d", id);
