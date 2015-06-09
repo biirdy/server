@@ -12,3 +12,12 @@ create table bw(			bw_id integer NOT NULL AUTO_INCREMENT, sensor_id integer NOT 
 create table udps(			udp_id integer NOT NULL AUTO_INCREMENT, sensor_id integer NOT NULL, size integer NOT NULL, duration double NOT NULL, dscp_flag integer NOT NULL, send_bw integer NOT NULL, bw integer NOT NULL, jitter integer NOT NULL, packet_loss integer NOT NULL, time DATETIME NOT NULL, primary key(udp_id), foreign key(sensor_id) references sensors(sensor_id)) engine = InnoDB;	
 create table dns(			dns_id integer NOT NULL AUTO_INCREMENT, sensor_id integer NOT NULL, duration integer NOT NULL, time DATETIME NOT NULL, primary key(dns_id), foreign key(sensor_id) references sensors(sensor_id)) engine = InnoDB;
 create table dns_failure(	dns_id integer NOT NULL AUTO_INCREMENT, sensor_id integer NOT NULL, time DATETIME NOT NULL, primary key(dns_id), foreign key(sensor_id) references sensors(sensor_id)) engine = InnoDB;
+
+drop database if exists members;
+create database members;
+
+use members;
+
+CREATE TABLE `members` ( `id` int(4) NOT NULL auto_increment, `username` varchar(65) NOT NULL default '', `password` varchar(65) NOT NULL default '', PRIMARY KEY (`id`) ) engine = InnoDB;
+
+
