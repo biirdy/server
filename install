@@ -13,5 +13,5 @@ fi
 #add service 
 cp service/network-sensor-server /etc/init.d/network-sensor-server
 
-#create log files
+#create log dir
 mkdir -p /var/log/network-sensor-server

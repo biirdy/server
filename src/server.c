@@ -41,7 +41,7 @@ char send_buff[1024];
 */
 typedef struct{
     //rcp
-    int rcp_port;
+    int rpc_port;
 
     //database
     const char* mysql_addr;
@@ -69,8 +69,8 @@ static int handler(void* user, const char* section, const char* name, const char
     configuration* pconfig = (configuration*)user;
 
     #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
-    if (MATCH("rcp", "rcp_port")) {
-        pconfig->rcp_port = atoi(value);
+    if (MATCH("rpc", "rpc_port")) {
+        pconfig->rpc_port = atoi(value);
     } else if (MATCH("database", "mysql_addr")) {
         pconfig->mysql_addr = strdup(value);
     } else if (MATCH("database", "mysql_usr")) {
@@ -399,7 +399,7 @@ void * rpc_server(void * arg){
 
     serverparm.config_file_name = NULL;   /* Select the modern normal API */
     serverparm.registryP        = registryP;
-    serverparm.port_number      = config.rcp_port;
+    serverparm.port_number      = config.rpc_port;
     serverparm.log_file_name    = "/var/log/network-sensor-server/xmlrpc_log";
 
     xmlrpc_server_abyss_create(&env, &serverparm, XMLRPC_APSIZE(registryP), &serverP);
@@ -581,9 +581,9 @@ int mysql_add_bw(int sensor_id, int bandwidth, int duration, int bytes){
     return 1;
 }
 
-int mysql_add_rtt(int sensor_id, int min, int max, int avg, int dev){
+int mysql_add_rtt(int sensor_id, float min, float max, float avg, float dev){
     char buff[200];
-    char * query = "insert into rtts(sensor_id, min, max, avg, dev, time) values(%d, %d, %d, %d, %d, FROM_UNIXTIME(%d))\n";
+    char * query = "insert into rtts(sensor_id, min, max, avg, dev, time) values(%d, %f, %f, %f, %f, FROM_UNIXTIME(%d))\n";
 
     sprintf(buff, query, sensor_id, min, max, avg, dev, time(NULL));
 
@@ -875,20 +875,24 @@ int main(int argc, char ** argv) {
                         server_log("Info", "Received ping response from sensor %d", id);
 
                         int i;
-                        int avg = 0;
-                        int max = 0;
-                        int min = 0;
-                        int dev = 0;
+                        float avg = 0;
+                        float max = 0;
+                        float min = 0;
+                        float dev = 0;
 
                         for(i = 0; i < response->length ; i++){
                             if(response->results[i].result == SRRP_RES_RTTMAX){
-                                max = response->results[i].value;
+                                //max = response->results[i].value;
+                                memcpy(&max, &response->results[i].value, 4);
                             }else if(response->results[i].result == SRRP_RES_RTTMIN){
-                                min = response->results[i].value;
+                                //min = response->results[i].value;
+                                memcpy(&min, &response->results[i].value, 4);
                             }else if(response->results[i].result == SRRP_RES_RTTDEV){
-                                dev = response->results[i].value;
+                                //dev = response->results[i].value;
+                                memcpy(&dev, &response->results[i].value, 4);
                             }else if(response->results[i].result == SRRP_RES_RTTAVG){
-                                avg = response->results[i].value;
+                                //avg = response->results[i].value;
+                                memcpy(&avg, &response->results[i].value, 4);
                             }else{
                                 server_log("Error", "Unrecoginsed result type for ping test - %d", response->results[i].result);
                             }
