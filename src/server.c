@@ -568,9 +568,9 @@ int mysql_remove_sensor(int id){
    return 1;
 }
 
-int mysql_add_bw(int sensor_id, int bandwidth, int duration, int bytes){
+int mysql_add_bw(int sensor_id, float bandwidth, float duration, float bytes){
     char buff[200];
-    char * query = "insert into bw(sensor_id, bytes, duration, speed, time) values(%d, %d, %d, %d, FROM_UNIXTIME(%d))\n";
+    char * query = "insert into bw(sensor_id, bytes, duration, speed, time) values(%d, %f, %f, %f, FROM_UNIXTIME(%d))\n";
 
     sprintf(buff, query, sensor_id, bytes, duration, bandwidth, time(NULL));
 
@@ -721,17 +721,14 @@ int main(int argc, char ** argv) {
             int hb_pid;
             if((hb_pid = fork()) == 0){
                 //build request
-                struct srrp_request * hb_request;
-                hb_request = (struct srrp_request *) send_buff;
-                hb_request->id = 1;
-                hb_request->type = SRRP_HB;
+                request_init((struct srrp_request *) send_buff, 1, SRRP_HB);
 
                 while(1){
                     if(!mysql_sensor_connected(id))
                         _exit(0);
 
                     printf("Sending hb request\n");
-                    send(newSocket, send_buff, sizeof(send_buff), 0);
+                    send(newSocket, send_buff, request_size((struct srrp_request *) send_buff), 0);
                     sleep(1);           //second
                 }
             }
@@ -743,23 +740,15 @@ int main(int argc, char ** argv) {
                 sleep(10);  
 
                 //build the request
-                struct srrp_request * rtt_request;
-                rtt_request = (struct srrp_request *) send_buff;
-                rtt_request->id = 55;
-                rtt_request->type = SRRP_RTT;
-                rtt_request->length = 1;
-
-                struct srrp_param ittr;
-                ittr.param = SRRP_ITTR;
-                ittr.value = 5;
-                rtt_request->params[0] = ittr;
+                request_init((struct srrp_request *) send_buff, 55, SRRP_RTT);
+                add_param((struct srrp_request *) send_buff, SRRP_ITTR, 5);
 
                 while(10){
                     if(!mysql_sensor_connected(id))
                         _exit(0);
 
                     server_log("Info", "Sending ping request to sensor %d", id);
-                    send(newSocket, send_buff, sizeof(send_buff), 0);
+                    send(newSocket, send_buff, request_size((struct srrp_request *) send_buff), 0);
                     sleep(config.rtt_interval);      
                 }
 
@@ -772,23 +761,15 @@ int main(int argc, char ** argv) {
                 sleep(30);  
 
                 //build the request
-                struct srrp_request * tp_request;
-                tp_request = (struct srrp_request *) send_buff;
-                tp_request->id = 99;
-                tp_request->type = SRRP_BW;
-                tp_request->length = 1;
-
-                struct srrp_param dur;
-                dur.param = SRRP_DUR;
-                dur.value = 10;
-                tp_request->params[0] = dur;
+                request_init((struct srrp_request *) send_buff, 99, SRRP_BW);
+                add_param((struct srrp_request *) send_buff, SRRP_DUR, 10);
 
                 while(10){
                     if(!mysql_sensor_connected(id))
                         _exit(0);
 
                     server_log("Info", "Sending iperf request to sensor %d", id);
-                    send(newSocket, send_buff, sizeof(send_buff), 0);
+                    send(newSocket, send_buff, request_size((struct srrp_request *) send_buff), 0);
                     sleep(config.tcp_bw_interval);     
                 }
             }
@@ -846,19 +827,22 @@ int main(int argc, char ** argv) {
                         server_log("Info", "Recevied iperf response from sensor %d", id);
 
                         int i;
-                        int bandwidth = 0;
-                        int duration = 0;
-                        int size = 0;
+                        float bandwidth = 0;
+                        float duration = 0;
+                        float size = 0;
                         for(i = 0; i < response->length ; i++){
                             if(response->results[i].result == SRRP_RES_DUR){
-                                duration = response->results[i].value;
+                                //duration = response->results[i].value;
                                 //printf("iperf duration = %d\n", response->results[i].value);
+                                memcpy(&duration, &response->results[i].value, 4);
                             }else if(response->results[i].result == SRRP_RES_SIZE){
-                                size = response->results[i].value;
+                                //size = response->results[i].value;
                                 //printf("iperf size = %d\n", response->results[i].value);
+                                memcpy(&size, &response->results[i].value, 4);
                             }else if(response->results[i].result == SRRP_RES_BW){
-                                bandwidth = response->results[i].value;
+                                //bandwidth = response->results[i].value;
                                 //printf("iperf speed = %d\n", response->results[i].value);
+                                memcpy(&bandwidth, &response->results[i].value, 4);
                             }else{
                                 server_log("Error", "Unrecoginsed result type for iperf test - %d", response->results[i].result);
                             }
