@@ -192,7 +192,7 @@ static xmlrpc_value * iperf_request(xmlrpc_env *   const envP,
     }
 
     //create request
-    struct srrp_request * tp_request;
+    /*struct srrp_request * tp_request;
     tp_request = (struct srrp_request *) send_buff;
     tp_request->id = 99;
     tp_request->type = SRRP_BW;
@@ -201,12 +201,15 @@ static xmlrpc_value * iperf_request(xmlrpc_env *   const envP,
     struct srrp_param dur;
     dur.param = SRRP_DUR;
     dur.value = (int) length;
-    tp_request->params[0] = dur;
+    tp_request->params[0] = dur;*/
+
+    request_init((struct srrp_request *) send_buff, 99, SRRP_BW);
+    add_param((struct srrp_request *) send_buff, SRRP_DUR, (int) length);
 
     //get socket
     struct nlist * sck = lookup((int) id);
     if(sck != NULL){
-        send(sck->socket, send_buff, sizeof(send_buff), 0);
+        send(sck->socket, send_buff, request_size((struct srrp_request *) send_buff), 0);
         server_log("Info", "RPC sending iperf request to sensor %d", id);
         return xmlrpc_build_value(envP, "i", (xmlrpc_int32) 0);
     }else{
@@ -230,7 +233,7 @@ static xmlrpc_value * ping_request( xmlrpc_env *    const envP,
     }
 
     //create request
-    struct srrp_request * rtt_request;
+    /*struct srrp_request * rtt_request;
     rtt_request = (struct srrp_request *) send_buff;
     rtt_request-> id = 55;
     rtt_request-> type = SRRP_RTT;
@@ -239,12 +242,15 @@ static xmlrpc_value * ping_request( xmlrpc_env *    const envP,
     struct srrp_param ittr;
     ittr.param = SRRP_ITTR;
     ittr.value = (int) iterations;
-    rtt_request->params[0] = ittr;
+    rtt_request->params[0] = ittr;*/
+
+    request_init((struct srrp_request *) send_buff, 55, SRRP_RTT);
+    add_param((struct srrp_request *) send_buff, SRRP_ITTR, (int) ittr);
 
     //get socket
     struct nlist * sck = lookup((int) id);
     if(sck != NULL){
-        send(sck->socket, send_buff, sizeof(send_buff), 0);
+        send(sck->socket, send_buff, request_size((struct srrp_request *) send_buff), 0);
         server_log("Info", "RPC sending ping request to sensor %d", id);
         return xmlrpc_build_value(envP, "i", (xmlrpc_int32) 0);
     }else{
@@ -268,36 +274,17 @@ static xmlrpc_value * udp_request(  xmlrpc_env *    const envP,
     }
 
     //create request
-    struct srrp_request * udp_request;
-    udp_request = (struct srrp_request *) send_buff;
-    udp_request-> id = 22;
-    udp_request-> type = SRRP_UDP;
-    udp_request-> length = 4;
-
-    struct srrp_param send_speed;
-    send_speed.param = SRRP_SPEED;
-    send_speed.value = (int) speed;
-    udp_request->params[0] = send_speed;
-
-    struct srrp_param dgram_size;
-    dgram_size.param = SRRP_SIZE;
-    dgram_size.value = (int) size;
-    udp_request->params[1] = dgram_size; 
-
-    struct srrp_param duration;
-    duration.param = SRRP_DUR;
-    duration.value = (int) dur;
-    udp_request->params[2] = duration;
-
-    struct srrp_param qos;
-    qos.param = SRRP_DSCP;
-    qos.value = (int) dscp;
-    udp_request->params[3] = qos;
+    request_init((struct srrp_request *) send_buff, 22, SRRP_UDP);
+    
+    add_param((struct srrp_request *) send_buff, SRRP_SPEED, (int) speed);
+    add_param((struct srrp_request *) send_buff, SRRP_SIZE, (int) size);
+    add_param((struct srrp_request *) send_buff, SRRP_DUR, (int) dur);
+    add_param((struct srrp_request *) send_buff, SRRP_DSCP, (int) dscp);
 
     //get socket
     struct nlist * sck = lookup((int) id);
     if(sck != NULL){
-        send(sck->socket, send_buff, sizeof(send_buff), 0);
+        send(sck->socket, send_buff, request_size((struct srrp_request *) send_buff), 0);
         server_log("Info", "RPC sending udp request to sensor %d", id);
         return xmlrpc_build_value(envP, "i", (xmlrpc_int32) 0);
     }else{
@@ -321,16 +308,18 @@ static xmlrpc_value * dns_request(  xmlrpc_env *    const envP,
     }
 
     //create request
-    struct srrp_request * dns_request;
+    /*struct srrp_request * dns_request;
     dns_request = (struct srrp_request *) send_buff;
     dns_request-> id = 11;
     dns_request-> type = SRRP_DNS;
-    dns_request-> length = 0;
+    dns_request-> length = 0;*/
+
+    request_init((struct srrp_request *) send_buff, 11, SRRP_DNS);
 
     //get socket
     struct nlist * sck = lookup((int) id);
     if(sck != NULL){
-        send(sck->socket, send_buff, sizeof(send_buff), 0);
+        send(sck->socket, send_buff, request_size((struct srrp_request *) send_buff), 0);
         server_log("Info", "RPC sending dns request to sensor %d", id);
         return xmlrpc_build_value(envP, "i", (xmlrpc_int32) 0);
     }else{
@@ -594,9 +583,9 @@ int mysql_add_rtt(int sensor_id, float min, float max, float avg, float dev){
     return 1;
 }
 
-int mysql_add_udp(int sensor_id, int size, int dur, int bw, int jit, int pkls, int dscp, int speed){
+int mysql_add_udp(int sensor_id, float size, float dur, float bw, float jit, float pkls, int dscp, float speed){
     char buff[200];
-    char * query = "insert into udps(sensor_id, size, duration, bw, jitter, packet_loss, dscp_flag , send_bw, time) values(%d, %d, %d, %d, %d, %d, %d, %d, FROM_UNIXTIME(%d))\n";
+    char * query = "insert into udps(sensor_id, size, duration, bw, jitter, packet_loss, dscp_flag , send_bw, time) values(%d, %f, %f, %f, %f, %f, %d, %f, FROM_UNIXTIME(%d))\n";
 
     sprintf(buff, query, sensor_id, size, dur, bw, jit, pkls, dscp, speed, time(NULL));
 
@@ -891,24 +880,32 @@ int main(int argc, char ** argv) {
                     }else if(response->id == 22){
                         server_log("Info", "Received udp iperf response from sensor %d", id);
 
-                        int i, dur, size, speed, dscp, bw, jit, pkls;
+                        int i;
+                        float dur, size, speed, dscp, bw, jit, pkls;
 
                         //parse results
                         for(i=0; i < response->length; i++){
                             if(response->results[i].result == SRRP_RES_DUR){
-                                dur = response->results[i].value;
+                                //dur = response->results[i].value;
+                                memcpy(&dur, &response->results[i].value, 4);
                             }else if(response->results[i].result == SRRP_RES_SIZE){
-                                size = response->results[i].value;
+                                //size = response->results[i].value;
+                                memcpy(&size, &response->results[i].value, 4);
                             }else if(response->results[i].result == SRRP_RES_BW){
-                                bw = response->results[i].value;
+                                //bw = response->results[i].value;
+                                memcpy(&bw, &response->results[i].value, 4);
                             }else if(response->results[i].result == SRRP_RES_JTR){
-                                jit = response->results[i].value;
+                                //jit = response->results[i].value;
+                                memcpy(&jit, &response->results[i].value, 4);
                             }else if(response->results[i].result == SRRP_RES_PKLS){
-                                pkls = response->results[i].value;
+                                //pkls = response->results[i].value;
+                                memcpy(&pkls, &response->results[i].value, 4);
                             }else if(response->results[i].result == SRRP_RES_SPEED){
-                                speed = response->results[i].value;
+                                //speed = response->results[i].value;
+                                memcpy(&speed, &response->results[i].value, 4);
                             }else if(response->results[i].result == SRRP_RES_DSCP){
-                                dscp = response->results[i].value;
+                                //dscp = response->results[i].value;
+                                memcpy(&dscp, &response->results[i].value, 4);
                             }else{
                                 server_log("Error", "Unrecognised result type for udp iperf");
                             }
@@ -916,13 +913,12 @@ int main(int argc, char ** argv) {
 
                         //add to db
                         if(dur && size && bw && speed){
-                            mysql_add_udp(id, size, dur, bw, jit, pkls, dscp, speed);
+                            mysql_add_udp(id, size, dur, bw, jit, pkls, (int) dscp, speed);
                         }else{
                             server_log("Error", "Response missing udp iperf results from sensor %d", id);
                         }
 
                     }else if(response->id == 33){
-                        printf("RECV!\n");
                         if(response->success == SRRP_SCES){
                             server_log("Info", "Received successfull dns response from sensor %d", id);
 
