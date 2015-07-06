@@ -233,19 +233,8 @@ static xmlrpc_value * ping_request( xmlrpc_env *    const envP,
     }
 
     //create request
-    /*struct srrp_request * rtt_request;
-    rtt_request = (struct srrp_request *) send_buff;
-    rtt_request-> id = 55;
-    rtt_request-> type = SRRP_RTT;
-    rtt_request-> length = 1;
-
-    struct srrp_param ittr;
-    ittr.param = SRRP_ITTR;
-    ittr.value = (int) iterations;
-    rtt_request->params[0] = ittr;*/
-
     request_init((struct srrp_request *) send_buff, 55, SRRP_RTT);
-    add_param((struct srrp_request *) send_buff, SRRP_ITTR, (int) ittr);
+    add_param((struct srrp_request *) send_buff, SRRP_ITTR, (int) iterations);
 
     //get socket
     struct nlist * sck = lookup((int) id);
@@ -314,7 +303,7 @@ static xmlrpc_value * dns_request(  xmlrpc_env *    const envP,
     dns_request-> type = SRRP_DNS;
     dns_request-> length = 0;*/
 
-    request_init((struct srrp_request *) send_buff, 11, SRRP_DNS);
+    request_init((struct srrp_request *) send_buff, 33, SRRP_DNS);
 
     //get socket
     struct nlist * sck = lookup((int) id);
@@ -596,9 +585,9 @@ int mysql_add_udp(int sensor_id, float size, float dur, float bw, float jit, flo
     return 1;
 }
 
-int mysql_add_dns(int sensor_id, int duration){
+int mysql_add_dns(int sensor_id, float duration){
     char buff[200];
-    char * query = "insert into dns(sensor_id, duration,time) values(%d, %d, FROM_UNIXTIME(%d))\n";
+    char * query = "insert into dns(sensor_id, duration,time) values(%d, %f, FROM_UNIXTIME(%d))\n";
 
     sprintf(buff, query, sensor_id, duration, time(NULL));
 
@@ -848,10 +837,10 @@ int main(int argc, char ** argv) {
                         server_log("Info", "Received ping response from sensor %d", id);
 
                         int i;
-                        float avg = 0;
-                        float max = 0;
-                        float min = 0;
-                        float dev = 0;
+                        float avg, max, min, dev = 0;
+                        //float max = 0;
+                        //float min = 0;
+                        //float dev = 0;
 
                         for(i = 0; i < response->length ; i++){
                             if(response->results[i].result == SRRP_RES_RTTMAX){
@@ -922,7 +911,21 @@ int main(int argc, char ** argv) {
                         if(response->success == SRRP_SCES){
                             server_log("Info", "Received successfull dns response from sensor %d", id);
 
-                            mysql_add_dns(id, response->results[0].value);
+                            int i;
+                            float dur;
+
+                            for(i = 0; i < response->length; i++){
+                                if(response->results[i].result == SRRP_RES_DUR){
+                                    memcpy(&dur, &response->results[i].value, 4);
+                                }
+                            }
+
+                            //check all results are there
+                            if(dur)
+                                mysql_add_dns(id, dur);
+                            else
+                                server_log("Error", "Response missing DNS results from sensor %d", id);
+
                         }else{
                             server_log("Info", "Received unsucessfull dns response from sensor %d", id);
 
