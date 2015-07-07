@@ -780,6 +780,12 @@ int main(int argc, char ** argv) {
                     
                     if(response->type == SRRP_HB){
                         printf("Received hb response\n");
+
+                        //bit of a hack to break from srrp to receive MAC of sensor
+                        char * sensor_mac = malloc(18);
+                        memcpy(sensor_mac, &response->results[0], 18);
+
+                        server_log("Info", "HB has MAC %s", sensor_mac);
                     }else if(response->type == SRRP_BW){
                         server_log("Info", "Recevied iperf response from sensor %d", id);
 
