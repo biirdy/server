@@ -192,18 +192,7 @@ static xmlrpc_value * iperf_request(xmlrpc_env *   const envP,
     }
 
     //create request
-    /*struct srrp_request * tp_request;
-    tp_request = (struct srrp_request *) send_buff;
-    tp_request->id = 99;
-    tp_request->type = SRRP_BW;
-    tp_request->length = 1;
-
-    struct srrp_param dur;
-    dur.param = SRRP_DUR;
-    dur.value = (int) length;
-    tp_request->params[0] = dur;*/
-
-    request_init((struct srrp_request *) send_buff, 99, SRRP_BW);
+    request_init((struct srrp_request *) send_buff, SRRP_BW);
     add_param((struct srrp_request *) send_buff, SRRP_DUR, (int) length);
 
     //get socket
@@ -233,7 +222,7 @@ static xmlrpc_value * ping_request( xmlrpc_env *    const envP,
     }
 
     //create request
-    request_init((struct srrp_request *) send_buff, 55, SRRP_RTT);
+    request_init((struct srrp_request *) send_buff, SRRP_RTT);
     add_param((struct srrp_request *) send_buff, SRRP_ITTR, (int) iterations);
 
     //get socket
@@ -263,7 +252,7 @@ static xmlrpc_value * udp_request(  xmlrpc_env *    const envP,
     }
 
     //create request
-    request_init((struct srrp_request *) send_buff, 22, SRRP_UDP);
+    request_init((struct srrp_request *) send_buff, SRRP_UDP);
     
     add_param((struct srrp_request *) send_buff, SRRP_SPEED, (int) speed);
     add_param((struct srrp_request *) send_buff, SRRP_SIZE, (int) size);
@@ -297,13 +286,7 @@ static xmlrpc_value * dns_request(  xmlrpc_env *    const envP,
     }
 
     //create request
-    /*struct srrp_request * dns_request;
-    dns_request = (struct srrp_request *) send_buff;
-    dns_request-> id = 11;
-    dns_request-> type = SRRP_DNS;
-    dns_request-> length = 0;*/
-
-    request_init((struct srrp_request *) send_buff, 33, SRRP_DNS);
+    request_init((struct srrp_request *) send_buff, SRRP_DNS);
 
     //get socket
     struct nlist * sck = lookup((int) id);
@@ -699,7 +682,7 @@ int main(int argc, char ** argv) {
             int hb_pid;
             if((hb_pid = fork()) == 0){
                 //build request
-                request_init((struct srrp_request *) send_buff, 1, SRRP_HB);
+                request_init((struct srrp_request *) send_buff, SRRP_HB);
 
                 while(1){
                     if(!mysql_sensor_connected(id))
@@ -718,7 +701,7 @@ int main(int argc, char ** argv) {
                 sleep(10);  
 
                 //build the request
-                request_init((struct srrp_request *) send_buff, 55, SRRP_RTT);
+                request_init((struct srrp_request *) send_buff, SRRP_RTT);
                 add_param((struct srrp_request *) send_buff, SRRP_ITTR, 5);
 
                 while(10){
@@ -739,7 +722,7 @@ int main(int argc, char ** argv) {
                 sleep(30);  
 
                 //build the request
-                request_init((struct srrp_request *) send_buff, 99, SRRP_BW);
+                request_init((struct srrp_request *) send_buff, SRRP_BW);
                 add_param((struct srrp_request *) send_buff, SRRP_DUR, 10);
 
                 while(10){
@@ -759,18 +742,14 @@ int main(int argc, char ** argv) {
                 sleep(50);
 
                 //build the request
-                struct srrp_request * dns_request;
-                dns_request = (struct srrp_request *) send_buff;
-                dns_request->id = 33;
-                dns_request->type = SRRP_DNS;
-                dns_request->length = 0;
+                request_init((struct srrp_request *) send_buff, SRRP_DNS);
 
                 while(1){
                     if(!mysql_sensor_connected(id))
                         _exit(0);
 
                     server_log("Info", "Sending dns request to sensor %d", id);
-                    send(newSocket, send_buff, sizeof(send_buff), 0);
+                    send(newSocket, send_buff, request_size((struct srrp_request *) send_buff), 0);
                     sleep(config.dns_interval);      
                 }
             }
@@ -799,9 +778,9 @@ int main(int argc, char ** argv) {
                     response = (struct srrp_response *) recv_buff;
                     //response->id      = 10;
                     
-                    if(response->id == 0){
+                    if(response->type == SRRP_HB){
                         printf("Received hb response\n");
-                    }else if(response->id == 99){
+                    }else if(response->type == SRRP_BW){
                         server_log("Info", "Recevied iperf response from sensor %d", id);
 
                         int i;
@@ -833,14 +812,11 @@ int main(int argc, char ** argv) {
                             server_log("Error", "Response missing iperf results from sensor %d", id);
                         }
 
-                    }else if(response->id == 55){
+                    }else if(response->type == SRRP_RTT){
                         server_log("Info", "Received ping response from sensor %d", id);
 
                         int i;
                         float avg, max, min, dev = 0;
-                        //float max = 0;
-                        //float min = 0;
-                        //float dev = 0;
 
                         for(i = 0; i < response->length ; i++){
                             if(response->results[i].result == SRRP_RES_RTTMAX){
@@ -866,7 +842,7 @@ int main(int argc, char ** argv) {
                             server_log("Error", "Response missing ping results from sensor %d", id);
                         }
 
-                    }else if(response->id == 22){
+                    }else if(response->type == SRRP_UDP){
                         server_log("Info", "Received udp iperf response from sensor %d", id);
 
                         int i;
@@ -907,7 +883,7 @@ int main(int argc, char ** argv) {
                             server_log("Error", "Response missing udp iperf results from sensor %d", id);
                         }
 
-                    }else if(response->id == 33){
+                    }else if(response->type == SRRP_DNS){
                         if(response->success == SRRP_SCES){
                             server_log("Info", "Received successfull dns response from sensor %d", id);
 
@@ -933,7 +909,7 @@ int main(int argc, char ** argv) {
                         }
 
                     }else{
-                        server_log("Error", "Uncognised data type - %d", response->id);
+                        server_log("Error", "Uncognised data type - %d", response->type);
                     }
 
                 }else{
