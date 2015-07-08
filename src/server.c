@@ -466,18 +466,30 @@ int mysql_connect(){
 /*
 * Returns the id
 */
-int mysql_add_sensor(char * ip){
-    char buff[200];
-    char * query = "insert into sensors(ip, active, start) values('%s', true, FROM_UNIXTIME(%d))\n";
+int mysql_add_sensor(char * ip, char * ether){
+    MYSQL * contd;
+    contd = mysql_init(NULL);
 
-    sprintf(buff, query, ip, time(NULL));
+    if (!mysql_real_connect(contd, config.mysql_addr,
+        config.mysql_usr, config.mysql_pass, "tnp", 0, NULL, 0)) {
+        server_log("Error", "Database Connection - %s", mysql_error(contd));
+        return 0;
+    }
 
-    if (mysql_query(conn, buff)) {
-      server_log("Error", "Database adding sensor - %s", mysql_error(conn));
+    char buff[500];
+    char * query = "insert into sensors(ip, ether, active, start) values('%s', '%s', true, FROM_UNIXTIME(%d)) ON DUPLICATE KEY UPDATE ip='%s', ether='%s', start=FROM_UNIXTIME(%d), active=true, sensor_id=LAST_INSERT_ID(sensor_id)\n";
+
+    sprintf(buff, query, ip, ether, time(NULL), ip, ether, time(NULL));
+
+    if (mysql_query(contd, buff)) {
+      server_log("Error", "Database adding sensor - %s", mysql_error(contd));
       return -1;
     }
-    
-    return mysql_insert_id(conn);
+
+    int id = mysql_insert_id(contd);
+    mysql_close(contd);
+
+    return id;
 }
 
 int mysql_sensor_connected(int id){
@@ -516,81 +528,153 @@ int mysql_sensor_connected(int id){
 }
 
 int mysql_remove_sensor(int id){
+    MYSQL * contd;
+    contd = mysql_init(NULL);
+
+    if (!mysql_real_connect(contd, config.mysql_addr,
+        config.mysql_usr, config.mysql_pass, "tnp", 0, NULL, 0)) {
+        server_log("Error", "Database Connection - %s", mysql_error(contd));
+        return 0;
+    }
+
     char buff[200];
     char * query = "update sensors set active=false, end=FROM_UNIXTIME(%d) where sensor_id=%d";
 
     sprintf(buff, query, time(NULL), id);
 
-    if (mysql_query(conn, buff)) {
-      fprintf(stderr, "%s\n", mysql_error(conn));
-      server_log("Error", "Database removing sensor - %s", mysql_error(conn));
+    if (mysql_query(contd, buff)) {
+      fprintf(stderr, "%s\n", mysql_error(contd));
+      server_log("Error", "Database removing sensor - %s", mysql_error(contd));
+      mysql_close(contd);
       return -1;
    }
+   mysql_close(contd);
+
    return 1;
 }
 
 int mysql_add_bw(int sensor_id, float bandwidth, float duration, float bytes){
+    MYSQL * contd;
+    contd = mysql_init(NULL);
+
+    if (!mysql_real_connect(contd, config.mysql_addr,
+        config.mysql_usr, config.mysql_pass, "tnp", 0, NULL, 0)) {
+        server_log("Error", "Database Connection - %s", mysql_error(contd));
+        return 0;
+    }
+
     char buff[200];
     char * query = "insert into bw(sensor_id, bytes, duration, speed, time) values(%d, %f, %f, %f, FROM_UNIXTIME(%d))\n";
 
     sprintf(buff, query, sensor_id, bytes, duration, bandwidth, time(NULL));
 
-    if(mysql_query(conn, buff)){
-        server_log("Error", "Database adding bandwidth - %s", mysql_error(conn));
+    if(mysql_query(contd, buff)){
+        server_log("Error", "Database adding bandwidth - %s", mysql_error(contd));
+        mysql_close(contd);
         return -1;
     }
+
+    mysql_close(contd);
     return 1;
 }
 
 int mysql_add_rtt(int sensor_id, float min, float max, float avg, float dev){
+    MYSQL * contd;
+    contd = mysql_init(NULL);
+
+    if (!mysql_real_connect(contd, config.mysql_addr,
+        config.mysql_usr, config.mysql_pass, "tnp", 0, NULL, 0)) {
+        server_log("Error", "Database Connection - %s", mysql_error(contd));
+        return 0;
+    }
+
     char buff[200];
     char * query = "insert into rtts(sensor_id, min, max, avg, dev, time) values(%d, %f, %f, %f, %f, FROM_UNIXTIME(%d))\n";
 
     sprintf(buff, query, sensor_id, min, max, avg, dev, time(NULL));
 
-    if(mysql_query(conn, buff)){
-        server_log("Error", "Database adding bandwidth - %s", mysql_error(conn));
+    if(mysql_query(contd, buff)){
+        server_log("Error", "Database adding bandwidth - %s", mysql_error(contd));
+        mysql_close(contd);
         return -1;
     }
+
+    mysql_close(contd);
     return 1;
 }
 
 int mysql_add_udp(int sensor_id, float size, float dur, float bw, float jit, float pkls, int dscp, float speed){
+    MYSQL * contd;
+    contd = mysql_init(NULL);
+
+    if (!mysql_real_connect(contd, config.mysql_addr,
+        config.mysql_usr, config.mysql_pass, "tnp", 0, NULL, 0)) {
+        server_log("Error", "Database Connection - %s", mysql_error(contd));
+        return 0;
+    }
+
     char buff[200];
     char * query = "insert into udps(sensor_id, size, duration, bw, jitter, packet_loss, dscp_flag , send_bw, time) values(%d, %f, %f, %f, %f, %f, %d, %f, FROM_UNIXTIME(%d))\n";
 
     sprintf(buff, query, sensor_id, size, dur, bw, jit, pkls, dscp, speed, time(NULL));
 
-    if(mysql_query(conn, buff)){
-        server_log("Error", "Database adding udp - %s", mysql_error(conn));
+    if(mysql_query(contd, buff)){
+        server_log("Error", "Database adding udp - %s", mysql_error(contd));
+        mysql_close(contd);
         return -1;
     }
+
+    mysql_close(contd);
     return 1;
 }
 
 int mysql_add_dns(int sensor_id, float duration){
+    MYSQL * contd;
+    contd = mysql_init(NULL);
+
+    if (!mysql_real_connect(contd, config.mysql_addr,
+        config.mysql_usr, config.mysql_pass, "tnp", 0, NULL, 0)) {
+        server_log("Error", "Database Connection - %s", mysql_error(contd));
+        return 0;
+    }
+
     char buff[200];
     char * query = "insert into dns(sensor_id, duration,time) values(%d, %f, FROM_UNIXTIME(%d))\n";
 
     sprintf(buff, query, sensor_id, duration, time(NULL));
 
-    if(mysql_query(conn, buff)){
-        server_log("Error", "Database adding dns - %s", mysql_error(conn));
+    if(mysql_query(contd, buff)){
+        server_log("Error", "Database adding dns - %s", mysql_error(contd));
+        mysql_close(contd);
         return -1;
     }
+
+    mysql_close(contd);
     return 1;
 }
 
 int mysql_add_dns_failure(int sensor_id){
+    MYSQL * contd;
+    contd = mysql_init(NULL);
+
+    if (!mysql_real_connect(contd, config.mysql_addr,
+        config.mysql_usr, config.mysql_pass, "tnp", 0, NULL, 0)) {
+        server_log("Error", "Database Connection - %s", mysql_error(contd));
+        return 0;
+    }
+
     char buff[200];
     char * query = "insert into dns_failure(sensor_id, time) values(%d, FROM_UNIXTIME(%d))\n";
 
     sprintf(buff, query, sensor_id, time(NULL));
 
-    if(mysql_query(conn, buff)){
-        server_log("Error", "Database adding dns failure - %s", mysql_error(conn));
+    if(mysql_query(contd, buff)){
+        server_log("Error", "Database adding dns failure - %s", mysql_error(contd));
+        mysql_close(contd);
         return -1;
     }
+
+    mysql_close(contd);
     return 1;
 }
 
@@ -666,12 +750,54 @@ int main(int argc, char ** argv) {
         /*---- Accept call creates a new socket for the incoming connection ----*/
         int newSocket = accept(welcomeSocket, (struct sockaddr *) &clientAddr, &addr_size);
 
-        char addr[15];
+        server_log("Info", "Sensor connected, sending ethernet request");
+
+        //send request for MAC address
+        request_init((struct srrp_request *) send_buff, SRRP_ETHER);
+        send(newSocket, send_buff, request_size((struct srrp_request *) send_buff), 0);
+
+        //wait for reply with MAC
+        fd_set eth_fd;
+        FD_ZERO(&eth_fd);
+        FD_SET (newSocket, &eth_fd);
+
+        //timeout for eth reply - 5 seconds
+        struct timeval eth_tv;
+        eth_tv.tv_sec = 5;
+        eth_tv.tv_usec = 0;
+
+        char * ether = malloc(18);  //MAC string
+
+        if(select(newSocket + 1, &eth_fd, NULL, NULL, &eth_tv)){
+            recv(newSocket,recv_buff, sizeof(recv_buff),0);
+
+            struct srrp_response * response;
+            response = (struct srrp_response *) recv_buff;
+
+            if(response->type == SRRP_ETHER){
+                server_log("Info", "Ethernet reply");
+                memcpy(ether, &response->results[0], 18);
+            }else{
+                server_log("Error", "Unknow response type %d", response->type);
+                close(newSocket);
+                continue;
+            }
+        }else{
+            server_log("Error", "MAC address request timeout");
+            close(newSocket);
+            continue;
+        }
+
+        char addr[16];  //for IP address string
         inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size);
 
-        //add to db 
-        int id = mysql_add_sensor(addr);
-        server_log("Info" , "Sensor %s connected with id %d", inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size), id);
+        //add to db
+        server_log("Info", "Before add to db"); 
+        int id = mysql_add_sensor(addr, ether);
+
+        //int id = 330;
+        server_log("Info", "After add to db");
+        server_log("Info" , "Sensor %s (%s) connected with id %d", ether, addr, id);
 
         //remember socket
         install(id, newSocket);
@@ -754,15 +880,18 @@ int main(int argc, char ** argv) {
                 }
             }
 
+            //timeval for receive loop select()
             struct timeval tv;
+            
+            //watch newSocket for receive
+            fd_set rfds;
+            FD_ZERO(&rfds);
+            FD_SET (newSocket, &rfds);
 
             int bytes = 1;
             
             while(bytes){
-                fd_set rfds;
-                FD_ZERO(&rfds);
-                FD_SET (newSocket, &rfds);
-
+                //reset timeout
                 tv.tv_sec = config.server_timeout;
                 tv.tv_usec = 0;
                 
@@ -776,16 +905,15 @@ int main(int argc, char ** argv) {
 
                     struct srrp_response * response;
                     response = (struct srrp_response *) recv_buff;
-                    //response->id      = 10;
                     
                     if(response->type == SRRP_HB){
                         printf("Received hb response\n");
 
                         //bit of a hack to break from srrp to receive MAC of sensor
-                        char * sensor_mac = malloc(18);
-                        memcpy(sensor_mac, &response->results[0], 18);
+                        //char * sensor_mac = malloc(18);
+                        //memcpy(sensor_mac, &response->results[0], 18);
 
-                        server_log("Info", "HB has MAC %s", sensor_mac);
+                        //server_log("Info", "HB has MAC %s", sensor_mac);
                     }else if(response->type == SRRP_BW){
                         server_log("Info", "Recevied iperf response from sensor %d", id);
 
@@ -795,16 +923,10 @@ int main(int argc, char ** argv) {
                         float size = 0;
                         for(i = 0; i < response->length ; i++){
                             if(response->results[i].result == SRRP_RES_DUR){
-                                //duration = response->results[i].value;
-                                //printf("iperf duration = %d\n", response->results[i].value);
                                 memcpy(&duration, &response->results[i].value, 4);
                             }else if(response->results[i].result == SRRP_RES_SIZE){
-                                //size = response->results[i].value;
-                                //printf("iperf size = %d\n", response->results[i].value);
                                 memcpy(&size, &response->results[i].value, 4);
                             }else if(response->results[i].result == SRRP_RES_BW){
-                                //bandwidth = response->results[i].value;
-                                //printf("iperf speed = %d\n", response->results[i].value);
                                 memcpy(&bandwidth, &response->results[i].value, 4);
                             }else{
                                 server_log("Error", "Unrecoginsed result type for iperf test - %d", response->results[i].result);
