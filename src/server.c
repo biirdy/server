@@ -466,7 +466,7 @@ int mysql_connect(){
 /*
 * Returns the id
 */
-int mysql_add_sensor(char * ip, char * ether){
+int mysql_add_sensor(char * ip, char * local_ip, char * ether){
     MYSQL * contd;
     contd = mysql_init(NULL);
 
@@ -477,9 +477,11 @@ int mysql_add_sensor(char * ip, char * ether){
     }
 
     char buff[500];
-    char * query = "insert into sensors(ip, ether, active, start) values('%s', '%s', true, FROM_UNIXTIME(%d)) ON DUPLICATE KEY UPDATE ip='%s', ether='%s', start=FROM_UNIXTIME(%d), active=true, sensor_id=LAST_INSERT_ID(sensor_id)\n";
+    char * query = "insert into sensors(ip, local_ip, ether, active, start) VALUES('%s', '%s', '%s', true, FROM_UNIXTIME(%d)) ON DUPLICATE KEY UPDATE ip=VALUES(ip), local_ip=VALUES(local_ip), ether=VALUES(ether), start=VALUES(start), active=true, sensor_id=LAST_INSERT_ID(sensor_id)\n";
 
-    sprintf(buff, query, ip, ether, time(NULL), ip, ether, time(NULL));
+    sprintf(buff, query, ip, local_ip, ether, time(NULL));
+
+    //server_log("Query", "%s", buff);
 
     if (mysql_query(contd, buff)) {
       server_log("Error", "Database adding sensor - %s", mysql_error(contd));
@@ -563,7 +565,7 @@ int mysql_add_bw(int sensor_id, int dst_id, float bandwidth, float duration, flo
         return 0;
     }
 
-    char buff[200];
+    char buff[300];
     char * query = "insert into bw(sensor_id, dst_id, bytes, duration, speed, time) values(%d, %d, %f, %f, %f, FROM_UNIXTIME(%d))\n";
 
     sprintf(buff, query, sensor_id, dst_id, bytes, duration, bandwidth, time(NULL));
@@ -713,6 +715,7 @@ int main(int argc, char ** argv) {
     struct sockaddr_in serverAddr, clientAddr;
     struct sockaddr_storage serverStorage;
     socklen_t addr_size;
+    struct in_addr local_ip;        //storage for loacl ip
 
     addr_size = sizeof serverStorage;
 
@@ -750,7 +753,7 @@ int main(int argc, char ** argv) {
         /*---- Accept call creates a new socket for the incoming connection ----*/
         int newSocket = accept(welcomeSocket, (struct sockaddr *) &clientAddr, &addr_size);
 
-        server_log("Info", "Sensor connected, sending ethernet request");
+        server_log("Info", "Sensor connected, sending local_info request");
 
         //send request for MAC address
         request_init((struct srrp_request *) send_buff, SRRP_ETHER, 1);     //ID for server - temp
@@ -769,14 +772,18 @@ int main(int argc, char ** argv) {
         char * ether = malloc(18);  //MAC string
 
         if(select(newSocket + 1, &eth_fd, NULL, NULL, &eth_tv)){
-            recv(newSocket,recv_buff, sizeof(recv_buff),0);
+            int bytes = recv(newSocket,recv_buff, sizeof(recv_buff),0);
 
             struct srrp_response * response;
             response = (struct srrp_response *) recv_buff;
 
             if(response->type == SRRP_ETHER){
-                server_log("Info", "Ethernet reply");
+                server_log("Info", "local_info reply");
                 memcpy(ether, &response->results[0], 18);
+
+                memcpy(&local_ip, &response->results[0] + 20, sizeof(local_ip));
+
+                server_log("Info", "Loacal IP %s", inet_ntoa(local_ip));
             }else{
                 server_log("Error", "Unknow response type %d", response->type);
                 close(newSocket);
@@ -792,11 +799,8 @@ int main(int argc, char ** argv) {
         inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size);
 
         //add to db
-        server_log("Info", "Before add to db"); 
-        int id = mysql_add_sensor(addr, ether);
+        int id = mysql_add_sensor(addr, inet_ntoa(local_ip), ether);
 
-        //int id = 330;
-        server_log("Info", "After add to db");
         server_log("Info" , "Sensor %s (%s) connected with id %d", ether, addr, id);
 
         //remember socket
