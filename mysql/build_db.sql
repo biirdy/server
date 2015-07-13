@@ -13,6 +13,15 @@ create table udps(			udp_id integer NOT NULL AUTO_INCREMENT, sensor_id integer N
 create table dns(			dns_id integer NOT NULL AUTO_INCREMENT, dst_id integer NOT NULL, duration integer NOT NULL, time DATETIME NOT NULL, primary key(dns_id), foreign key(sensor_id) references sensors(sensor_id)) engine = InnoDB;
 create table dns_failure(	dns_id integer NOT NULL AUTO_INCREMENT, sensor_id integer NOT NULL, time DATETIME NOT NULL, primary key(dns_id), foreign key(sensor_id) references sensors(sensor_id)) engine = InnoDB;
 
+create table schedules(		schedule_id integer NOT NULL AUTO_INCREMENT, recipient integer NOT NULL, sensor integer NOT NULL, period integer NOT NULL description varchar(50), primary key(schedule_id), foreign key(recipient) references sensors(sensor_id), foreign key(sensor) references sensors(sensor_id)) engine = InnoDB;
+create table rtt_schedules(	id integer NOT NULL AUTO_INCREMENT, schedule_id integer NOT NULL, iterations integer NOT NULL, primary key(id), foreign key(schedule_id) references schedules(schedule_id)) engine = InnoDB;
+create table tcp_schedules(	id integer NOT NULL AUTO_INCREMENT, schedule_id integer NOT NULL, duration integer NOT NULL, primary key(id), foreign key(schedule_id) references schedules(schedule_id)) engine = InnoDB;
+create table udp_schedules(	id integer NOT NULL AUTO_INCREMENT, schedule_id integer NOT NULL, send_speed integer NOT NULL, packet_size integer NOT NULL, duration integer NOT NULL, primary key(id), foreign key(schedule_id) references schedules(schedule_id)) engine = InnoDB;
+create table dns_schedules(	id integer NOT NULL AUTO_INCREMENT, schedule_id integer NOT NULL, url varchar(50), primary key(id), foreign key(schedule_id) references schedules(schedule_id)) engine = InnoDB;
+
+
+
+
 drop database if exists members;
 create database members;
 

@@ -36,6 +36,8 @@ int deamon = 0;
 char recv_buff[1024];
 char send_buff[1024];
 
+struct in_addr server_ip;       
+
 /*
 * Config struct to be loaded in 
 */
@@ -50,6 +52,7 @@ typedef struct{
 
     //server
     const char* server_addr;
+    const char* server_pub_addr;
     int server_port;
     int server_timeout;
 
@@ -79,6 +82,8 @@ static int handler(void* user, const char* section, const char* name, const char
         pconfig->mysql_pass = strdup(value);
     } else if (MATCH("server", "server_addr")) {
         pconfig->server_addr = strdup(value);
+    } else if (MATCH("server", "server_pub_addr")) {
+        pconfig->server_pub_addr = strdup(value);
     } else if (MATCH("server", "server_port")) {
         pconfig->server_port = atoi(value);
     } else if (MATCH("server", "server_timeout")) {
@@ -192,7 +197,7 @@ static xmlrpc_value * iperf_request(xmlrpc_env *   const envP,
     }
 
     //create request
-    request_init((struct srrp_request *) send_buff, SRRP_BW, 1);        //ID for server - temp
+    request_init((struct srrp_request *) send_buff, SRRP_BW, 1, server_ip);        //ID & IP for server - temp
     add_param((struct srrp_request *) send_buff, SRRP_DUR, (int) length);
 
     //get socket
@@ -222,7 +227,7 @@ static xmlrpc_value * ping_request( xmlrpc_env *    const envP,
     }
 
     //create request
-    request_init((struct srrp_request *) send_buff, SRRP_RTT, 1);       //ID for server - temp
+    request_init((struct srrp_request *) send_buff, SRRP_RTT, 1,  server_ip);       //ID & IP for server - temp
     add_param((struct srrp_request *) send_buff, SRRP_ITTR, (int) iterations);
 
     //get socket
@@ -252,7 +257,7 @@ static xmlrpc_value * udp_request(  xmlrpc_env *    const envP,
     }
 
     //create request
-    request_init((struct srrp_request *) send_buff, SRRP_UDP, 1);   //ID for server - temp
+    request_init((struct srrp_request *) send_buff, SRRP_UDP, 1,  server_ip);   //ID & IP for server - temp
     
     add_param((struct srrp_request *) send_buff, SRRP_SPEED, (int) speed);
     add_param((struct srrp_request *) send_buff, SRRP_SIZE, (int) size);
@@ -286,7 +291,7 @@ static xmlrpc_value * dns_request(  xmlrpc_env *    const envP,
     }
 
     //create request
-    request_init((struct srrp_request *) send_buff, SRRP_DNS, 1);   //ID for server - temp
+    request_init((struct srrp_request *) send_buff, SRRP_DNS, 1, server_ip);   //ID & IP for server - temp
 
     //get socket
     struct nlist * sck = lookup((int) id);
@@ -744,6 +749,9 @@ int main(int argc, char ** argv) {
         exit(1);
     }
 
+    //make server in_addr
+    inet_aton(config.server_pub_addr, &server_ip);
+
     //start rpc server in thread
     pthread_t pth;
     pthread_create(&pth, NULL, rpc_server, (void * ) 1);
@@ -756,7 +764,7 @@ int main(int argc, char ** argv) {
         server_log("Info", "Sensor connected, sending local_info request");
 
         //send request for MAC address
-        request_init((struct srrp_request *) send_buff, SRRP_ETHER, 1);     //ID for server - temp
+        request_init((struct srrp_request *) send_buff, SRRP_ETHER, 1, server_ip);     //ID & IPfor server - temp
         send(newSocket, send_buff, request_size((struct srrp_request *) send_buff), 0);
 
         //wait for reply with MAC
@@ -781,7 +789,7 @@ int main(int argc, char ** argv) {
                 server_log("Info", "local_info reply");
                 memcpy(ether, &response->results[0], 18);
 
-                memcpy(&local_ip, &response->results[0] + 20, sizeof(local_ip));
+                memcpy(&local_ip, &response->results[3], sizeof(local_ip));
 
                 server_log("Info", "Loacal IP %s", inet_ntoa(local_ip));
             }else{
@@ -812,7 +820,7 @@ int main(int argc, char ** argv) {
             int hb_pid;
             if((hb_pid = fork()) == 0){
                 //build request
-                request_init((struct srrp_request *) send_buff, SRRP_HB, 1);        //ID for server - temp
+                request_init((struct srrp_request *) send_buff, SRRP_HB, 1, server_ip);        //ID & IP for server - temp
 
                 while(1){
                     if(!mysql_sensor_connected(id))
@@ -831,7 +839,7 @@ int main(int argc, char ** argv) {
                 sleep(10);  
 
                 //build the request
-                request_init((struct srrp_request *) send_buff, SRRP_RTT, 1);       //ID for server - temp
+                request_init((struct srrp_request *) send_buff, SRRP_RTT, 1, server_ip);       //ID & IP for server - temp
                 add_param((struct srrp_request *) send_buff, SRRP_ITTR, 5);
 
                 while(10){
@@ -852,7 +860,7 @@ int main(int argc, char ** argv) {
                 sleep(30);  
 
                 //build the request
-                request_init((struct srrp_request *) send_buff, SRRP_BW, 1);        //ID for server -temp
+                request_init((struct srrp_request *) send_buff, SRRP_BW, 1, server_ip);        //ID & IP for server -temp
                 add_param((struct srrp_request *) send_buff, SRRP_DUR, 10);
 
                 while(10){
@@ -872,7 +880,7 @@ int main(int argc, char ** argv) {
                 sleep(50);
 
                 //build the request
-                request_init((struct srrp_request *) send_buff, SRRP_DNS, 1);       //ID for server - temp
+                request_init((struct srrp_request *) send_buff, SRRP_DNS, 1, server_ip);       //ID & IP for server - temp
 
                 while(1){
                     if(!mysql_sensor_connected(id))
