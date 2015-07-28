@@ -1,7 +1,6 @@
 #!/bin/bash
 
 #executables
-cp bin/rpc_request /usr/bin/network-sensor-server-rpc-client
 cp bin/server /usr/bin/network-sensor-server
 cp bin/scheduler /usr/bin/scheduler
 
