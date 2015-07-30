@@ -248,7 +248,7 @@ static xmlrpc_value * iperf_request(xmlrpc_env *   const envP,
         int send_result = send(sck->socket, send_buff, request_size((struct srrp_request *) send_buff), 0);
 
         //check if send was successful - socket has probably been closed
-        if(send_result){
+        if(send_result == request_size((struct srrp_request *) send_buff)){
             server_log("Info", "RPC sending iperf request to sensor %d", id);
             return xmlrpc_build_value(envP, "i", (xmlrpc_int32) 0);    
         }else{
@@ -290,8 +290,8 @@ static xmlrpc_value * ping_request( xmlrpc_env *    const envP,
         int send_result = send(sck->socket, send_buff, request_size((struct srrp_request *) send_buff), 0);
 
         //check if send was successful - socket has probably been closed
-        if(send_result){
-            server_log("Info", "RPC sending ping request to sensor %d", id);
+        if(send_result == request_size((struct srrp_request *) send_buff)){
+            server_log("Info", "RPC sending ping request to sensor %d - bytes %d", id, send_result);
             return xmlrpc_build_value(envP, "i", (xmlrpc_int32) 0);    
         }else{
             server_log("Error", "Send failed to send ping request to sendor %d - errno %d", id, send_result);
@@ -338,7 +338,7 @@ static xmlrpc_value * udp_request(  xmlrpc_env *    const envP,
         int send_result = send(sck->socket, send_buff, request_size((struct srrp_request *) send_buff), 0);
 
         //check if send was successful - socket has probably been closed
-        if(send_result){
+        if(send_result == request_size((struct srrp_request *) send_buff)){
             server_log("Info", "RPC sending udp request to sensor %d", id);
             return xmlrpc_build_value(envP, "i", (xmlrpc_int32) 0);    
         }else{
@@ -376,8 +376,8 @@ static xmlrpc_value * dns_request(  xmlrpc_env *    const envP,
         int send_result = send(sck->socket, send_buff, request_size((struct srrp_request *) send_buff), 0);
         
         //check if send was successful - socket has probably been closed
-        if(send_result){
-            server_log("Info", "RPC sending dns request to sensor %d", id);
+        if(send_result == request_size((struct srrp_request *) send_buff)){
+            server_log("Info", "RPC sending dns request to sensor %d - bytes %d", id, send_result);
             return xmlrpc_build_value(envP, "i", (xmlrpc_int32) 0);    
         }else{
             server_log("Error", "Send failed to send dns request to sendor %d - errno %d", id, send_result);

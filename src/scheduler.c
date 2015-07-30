@@ -288,6 +288,31 @@ int mysql_update_pid(int sid, int pid){
    return 1;
 }
 
+int mysql_update_status(int sid, int status){
+    MYSQL * contd;
+    contd = mysql_init(NULL);
+
+    if (!mysql_real_connect(contd, config.mysql_addr,
+        config.mysql_usr, config.mysql_pass, "tnp", 0, NULL, 0)) {
+        schedule_log("Error", "Database Connection - %s", mysql_error(contd));
+        return 0;
+    }
+
+    char buff[100];
+    char * query = "update schedules set status='%d' where schedule_id='%d'\n";
+
+    sprintf(buff, query, status, sid);
+
+    if (mysql_query(contd, buff)) {
+      fprintf(stderr, "%s\n", mysql_error(contd));
+      schedule_log("Error", "Database updating status of schedule - %s", mysql_error(contd));
+      mysql_close(contd);
+      return -1;
+   }
+   mysql_close(contd);
+   return 1;
+}
+
 void closeLog(int sig){
     schedule_log("Info", "Scheduler stopped");
     mysql_stop_all();
@@ -323,7 +348,6 @@ int call(char * method_name, int src, int dst, int param[]){
     }else if(strcmp(method_name, "udp.request") == 0){
    		resultP = xmlrpc_client_call(&env, serverUrl, "udp.request", "(iiiiii)", (xmlrpc_int32) src, (xmlrpc_int32) dst, (xmlrpc_int32) param[0], (xmlrpc_int32) param[1], (xmlrpc_int32) param[2], (xmlrpc_int32) param[3]);
     }else if(strcmp(method_name, "dns.request") == 0){
-    	schedule_log("Debug", "Called dns request");
    		resultP = xmlrpc_client_call(&env, serverUrl, "dns.request", "(i)", (xmlrpc_int32) src);
     }else{
     	schedule_log("Error", "Unrecognised method name %s", method_name);
@@ -384,10 +408,11 @@ static xmlrpc_value * add_rtt_schedule( xmlrpc_env *    const envP,
 
     	while(1){
 	    	if(!call("ping.request", (int) src, (int) dst, param)){
-	    		schedule_log("Info", "Sent request from schedule id %d to serevr", sid);  	
+	    		schedule_log("Info", "Sent request from schedule id %d to serevr", sid);
+                mysql_update_status(sid, 1);  	
 	    	}else{
 	    		schedule_log("Error", "Failed to send request from schedule id %d to server", sid);
-	    		//susspend schedule???
+	    		mysql_update_status(sid, 0);
 	    	}
     		sleep((int) interval);
     	}
@@ -434,9 +459,10 @@ static xmlrpc_value * add_tcp_schedule( xmlrpc_env *    const envP,
 
 	    	if(!call("iperf.request", (int) src, (int) dst, param)){
 	    		schedule_log("Info", "Sent request from schedule id %d to serevr", sid);  	
+                mysql_update_status(sid, 1);
 	    	}else{
 	    		schedule_log("Error", "Failed to send request from schedule id %d to server", sid);
-	    		//susspend schedule???
+	    		mysql_update_status(sid, 0);
 	    	}
     		sleep((int) interval);
     	}
@@ -485,9 +511,10 @@ static xmlrpc_value * add_udp_schedule( xmlrpc_env *    const envP,
 	    	
 	    	if(!call("udp.request", (int) src, (int) dst, param)){
 	    		schedule_log("Info", "Sent request from schedule id %d to serevr", sid);  	
+                mysql_update_status(sid, 1);
 	    	}else{
 	    		schedule_log("Error", "Failed to send request from schedule id %d to server", sid);
-	    		//susspend schedule???
+	    		mysql_update_status(sid, 0);
 	    	}
     		sleep((int) interval);
     	}
@@ -531,10 +558,11 @@ static xmlrpc_value * add_dns_schedule( xmlrpc_env *    const envP,
     	while(1){
 	    	
 	    	if(!call("dns.request", (int) src, 0, NULL)){
-	    		schedule_log("Info", "Sent request from schedule id %d to serevr", sid);  	
+	    		schedule_log("Info", "Sent request from schedule id %d to serevr", sid);  
+                mysql_update_status(sid, 1);	
 	    	}else{
 	    		schedule_log("Error", "Failed to send request from schedule id %d to server", sid);
-	    		//susspend schedule???
+	    		mysql_update_status(sid, 0);
 	    	}
 
     		schedule_log("Info", "Sending request from schedule id %d", sid); 
