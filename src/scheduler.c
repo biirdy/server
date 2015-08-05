@@ -137,7 +137,7 @@ static void deamonise(){
     schedule_log("Info", "Deamonised");
 }
 
-int mysql_add_schedule(char * method_name, int id, int src, int dst, int interval, int param[]){
+int mysql_add_schedule(char * method_name, int id, int src, int src_type, int dst, int dst_type, int interval, int param[]){
 	MYSQL * contd;
     contd = mysql_init(NULL);
 
@@ -171,12 +171,12 @@ int mysql_add_schedule(char * method_name, int id, int src, int dst, int interva
 
     //exception for dns schedule with no recipient - should fix 
     if(strcmp(method_name, "dns") == 0){
-    	query = "insert into schedules(schedule_id, sensor, period, method, details, active) VALUES('%d', '%d', '%d', '%s', '%s', '%d') ON DUPLICATE KEY UPDATE sensor=VALUES(sensor), period=VALUES(period), method=VALUES(method), details=VALUES(details), active=VALUES(active), schedule_id=LAST_INSERT_ID(schedule_id); \n";
-    	sprintf(buff, query, id, src, interval, method_name, details, 1);
+    	query = "insert into schedules(schedule_id, source_id, source_type, period, method, details, active) VALUES('%d', '%d', '%d', '%d', '%s', '%s', '%d') ON DUPLICATE KEY UPDATE source_id=VALUES(source_id), source_type=VALUES(source_type), period=VALUES(period), method=VALUES(method), details=VALUES(details), active=VALUES(active), schedule_id=LAST_INSERT_ID(schedule_id); \n";
+    	sprintf(buff, query, id, src, src_type, interval, method_name, details, 1);
         //schedule_log("Query", "%s", buff);
     }else{
-    	query = "insert into schedules(schedule_id, sensor, recipient, period, method, details, active) VALUES('%d', '%d', '%d', '%d', '%s', '%s', '%d') ON DUPLICATE KEY UPDATE sensor=VALUES(sensor), recipient=VALUES(recipient), period=VALUES(period), method=VALUES(method), details=VALUES(details), active=VALUES(active), schedule_id=LAST_INSERT_ID(schedule_id); \n";
-    	sprintf(buff, query, id, src, dst, interval, method_name, details, 1);
+    	query = "insert into schedules(schedule_id, source_id, source_type, destination_id, destination_type, period, method, details, active) VALUES('%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%d') ON DUPLICATE KEY UPDATE source_id=VALUES(source_id), source_type=VALUES(source_type), destination_id=VALUES(destination_id), destination_type=(destination_type), period=VALUES(period), method=VALUES(method), details=VALUES(details), active=VALUES(active), schedule_id=LAST_INSERT_ID(schedule_id); \n";
+    	sprintf(buff, query, id, src, src_type, dst, dst_type, interval, method_name, details, 1);
     }
 
     if (mysql_query(contd, buff)) {
@@ -372,6 +372,130 @@ int call(char * method_name, int src, int dst, int param[]){
     return (int) success;
 }
 
+int send_request(char * method_name, int src, int src_type, int dst, int dst_type, int param[], int sid){
+
+    int faults = 0;
+
+    //neither source or destination is a group
+    if(src_type == 0 && dst_type == 0){
+        schedule_log("Info", "Schedule %d source and destination are both sensors - sending single request to server", sid);
+        faults = call(method_name, src, dst, param);
+        schedule_log("Info", "Schedule %d request sent with %d faults", sid, faults);
+        return faults;
+    }
+
+    //mysql connecy
+    MYSQL * contd;
+    contd = mysql_init(NULL);
+    if (!mysql_real_connect(contd, config.mysql_addr,
+        config.mysql_usr, config.mysql_pass, "tnp", 0, NULL, CLIENT_MULTI_STATEMENTS)) {
+        schedule_log("Error", "Database Connection - %s", mysql_error(contd));
+        return 0;
+    }
+
+    char buff[100];
+    char * query;
+    int * srcs;
+    int * dsts;
+    int src_cnt;
+    int dst_cnt;
+    int i, j;
+
+    //source is a group
+    if(src_type == 1){
+        schedule_log("Info", "Schedule %d source is a group - getting group members", sid);
+
+        query = "SELECT sensor_id FROM group_membership WHERE group_id ='%d'\n";
+        sprintf(buff, query, src);
+
+        if (mysql_query(contd, buff)) {
+            fprintf(stderr, "%s\n", mysql_error(contd));
+            schedule_log("Error", "Database getting sensors in group - %s", mysql_error(contd));
+            mysql_close(contd);
+            return -1;
+        }
+
+        MYSQL_RES *result = mysql_store_result(contd);
+        if (result == NULL) {
+            schedule_log("Error", "Database empty results getting sensors in group %d", dst);
+            return -1; 
+        }
+
+        //get number of sensors in group and initalise soures array
+        src_cnt = mysql_num_rows(result);
+        srcs = malloc(sizeof(int) * src_cnt);
+
+        schedule_log("Info", "Schedule %d source has %d members", sid, src_cnt);
+
+        //laod results into sources array
+        MYSQL_ROW row;
+        for(i = 0; i < src_cnt; i++){
+            row = mysql_fetch_row(result);
+            srcs[i] = atoi(row[0]);
+        }
+
+        mysql_free_result(result);
+    }else{
+        srcs = malloc(sizeof(int));
+        srcs[0] = src;
+        src_cnt = 1;
+    }
+
+    //destination is a group
+    if(dst_type == 1){
+        schedule_log("Info", "Schedule %d destination is a group - getting group members", sid);
+
+        query = "SELECT sensor_id FROM group_membership WHERE group_id ='%d'\n";
+        sprintf(buff, query, dst);
+
+        if (mysql_query(contd, buff)) {
+            fprintf(stderr, "%s\n", mysql_error(contd));
+            schedule_log("Error", "Database getting sensors in group - %s", mysql_error(contd));
+            mysql_close(contd);
+            return -1;
+        }
+
+        MYSQL_RES *result = mysql_store_result(contd);
+        if (result == NULL) {
+            schedule_log("Error", "Database empty results getting sensors in group %d", dst);
+            return -1; 
+        }
+
+        //get number of sensors in group and initalise soures array
+        dst_cnt = mysql_num_rows(result);
+        dsts = malloc(sizeof(int) * dst_cnt);
+
+        schedule_log("Info", "Schedule %d destination has %d members", sid, dst_cnt);
+
+        //laod results into sources array
+        MYSQL_ROW row;
+        for(i = 0; i < dst_cnt; i++){
+            row = mysql_fetch_row(result);
+            dsts[i] = atoi(row[0]);
+        }
+
+        mysql_free_result(result);
+    }else{
+        dsts    = malloc(sizeof(int));
+        dsts[0] = dst; 
+        dst_cnt = 1;
+    }
+
+    mysql_close(contd);
+
+    schedule_log("Info", "Sending all schedule %d requests to server.", sid);
+
+    for(i = 0; i < src_cnt; i++){
+        for(j = 0; j < dst_cnt; j++){
+            if(srcs[i] != dsts[j])      //dont call if src and dst are the same sensor
+                faults+=call(method_name, srcs[i], dsts[j], param);
+        }
+    }
+
+    schedule_log("Info", "All schedule %d requests sent with %d faults", sid, faults);
+    return faults;  
+}
+
 /*
 *
 */
@@ -380,10 +504,10 @@ static xmlrpc_value * add_rtt_schedule( xmlrpc_env *    const envP,
                                     void *          const serverInfo,
                                     void *          const channelInfo){
 
-    xmlrpc_int32 id, src, dst, ittr, interval;
+    xmlrpc_int32 id, src, src_type, dst, dst_type, ittr, interval;
 
     //parse argument array
-    xmlrpc_decompose_value(envP, paramArrayP, "(iiiii)", &id, &src, &dst, &ittr, &interval);
+    xmlrpc_decompose_value(envP, paramArrayP, "(iiiiiii)", &id, &src, &src_type, &dst, &dst_type, &ittr, &interval);
     if (envP->fault_occurred){
         schedule_log("Error", "Could not parse add_request request argument array");
         return NULL;
@@ -395,7 +519,7 @@ static xmlrpc_value * add_rtt_schedule( xmlrpc_env *    const envP,
         schedule_log("Info", "Starting RTT schedule ", (int) id);
 
     int param[1] = {(int) ittr};
-   	int sid = mysql_add_schedule("rtt", id, src, dst, interval, param);
+   	int sid = mysql_add_schedule("rtt", id, src, src_type, dst, dst_type, interval, param);
 
    	//what if fork fails?
     if(fork() == 0){
@@ -407,11 +531,10 @@ static xmlrpc_value * add_rtt_schedule( xmlrpc_env *    const envP,
     	mysql_update_pid(sid, getpid());
 
     	while(1){
-	    	if(!call("ping.request", (int) src, (int) dst, param)){
-	    		schedule_log("Info", "Sent request from schedule id %d to serevr", sid);
+            schedule_log("Info", "Schedule %d invoked", sid);
+	    	if(!send_request("ping.request", (int)src, (int)src_type, (int)dst, (int)dst_type, param, sid)){
                 mysql_update_status(sid, 1);  	
 	    	}else{
-	    		schedule_log("Error", "Failed to send request from schedule id %d to server", sid);
 	    		mysql_update_status(sid, 0);
 	    	}
     		sleep((int) interval);
@@ -429,17 +552,17 @@ static xmlrpc_value * add_tcp_schedule( xmlrpc_env *    const envP,
                                     void *          const serverInfo,
                                     void *          const channelInfo){
 
-    xmlrpc_int32 id, src, dst, dur, interval;
+    xmlrpc_int32 id, src, src_type, dst, dst_type, dur, interval;
 
     //parse argument array
-    xmlrpc_decompose_value(envP, paramArrayP, "(iiiii)", &id, &src, &dst, &dur, &interval);
+    xmlrpc_decompose_value(envP, paramArrayP, "(iiiiiii)", &id, &src, &src_type, &dst, &dst_type, &dur, &interval);
     if (envP->fault_occurred){
         schedule_log("Error", "Could not parse add_request request argument array");
         return NULL;
     }
 
     int param[1] = {(int) dur};
-    int sid = mysql_add_schedule("tcp", id, src, dst, interval, param);
+    int sid = mysql_add_schedule("tcp", id, src, src_type, dst, dst_type, interval, param);
 
     if((int)id==0)
         schedule_log("Info", "Created TCP schedule from sensor %d to %d with an interval of %d seconds - Schedule id %d", (int) src, (int) dst, (int) interval, sid);    
@@ -456,12 +579,9 @@ static xmlrpc_value * add_tcp_schedule( xmlrpc_env *    const envP,
     	mysql_update_pid(sid, getpid());
 
     	while(1){
-
-	    	if(!call("iperf.request", (int) src, (int) dst, param)){
-	    		schedule_log("Info", "Sent request from schedule id %d to serevr", sid);  	
+	    	if(!send_request("iperf.request", (int)src, (int)src_type, (int)dst, (int)dst_type, param, sid)){
                 mysql_update_status(sid, 1);
 	    	}else{
-	    		schedule_log("Error", "Failed to send request from schedule id %d to server", sid);
 	    		mysql_update_status(sid, 0);
 	    	}
     		sleep((int) interval);
@@ -479,19 +599,17 @@ static xmlrpc_value * add_udp_schedule( xmlrpc_env *    const envP,
                                     void *          const serverInfo,
                                     void *          const channelInfo){
 
-    xmlrpc_int32 id, src, dst, dur, speed, size, dscp, interval;
+    xmlrpc_int32 id, src, src_type, dst, dst_type, dur, speed, size, dscp, interval;
 
     //parse argument array
-    xmlrpc_decompose_value(envP, paramArrayP, "(iiiiiiii)", &id, &src, &dst, &speed, &size, &dur, &dscp, &interval);
+    xmlrpc_decompose_value(envP, paramArrayP, "(iiiiiiiiii)", &id, &src, &src_type, &dst, &dst_type, &speed, &size, &dur, &dscp, &interval);
     if (envP->fault_occurred){
         schedule_log("Error", "Could not parse add_udp_schedule request argument array");
         return NULL;
     }
 
-    
-
     int param[4] = {(int) speed, (int) size, (int) dur, (int) dscp};
-    int sid = mysql_add_schedule("udp", id, src, dst, interval, param);
+    int sid = mysql_add_schedule("udp", id, src, src_type, dst, dst_type, interval, param);
 
     if((int)id==0)
         schedule_log("Info", "Created UDP schedule from sensor %d to %d with an interval of %d seconds - Schedule ID", (int) src, (int) dst, (int) interval, sid);
@@ -508,12 +626,9 @@ static xmlrpc_value * add_udp_schedule( xmlrpc_env *    const envP,
     	mysql_update_pid(sid, getpid());
 
     	while(1){
-	    	
-	    	if(!call("udp.request", (int) src, (int) dst, param)){
-	    		schedule_log("Info", "Sent request from schedule id %d to serevr", sid);  	
+	    	if(!send_request("udp.request", (int)src, (int)src_type, (int)dst, (int)dst_type, param, sid)){
                 mysql_update_status(sid, 1);
 	    	}else{
-	    		schedule_log("Error", "Failed to send request from schedule id %d to server", sid);
 	    		mysql_update_status(sid, 0);
 	    	}
     		sleep((int) interval);
@@ -531,16 +646,16 @@ static xmlrpc_value * add_dns_schedule( xmlrpc_env *    const envP,
                                     void *          const serverInfo,
                                     void *          const channelInfo){
 
-    xmlrpc_int32 id, src, interval;
+    xmlrpc_int32 id, src, src_type, interval;
 
     //parse argument array
-    xmlrpc_decompose_value(envP, paramArrayP, "(iii)", &id, &src, &interval);
+    xmlrpc_decompose_value(envP, paramArrayP, "(iiii)", &id, &src, &src_type, &interval);
     if (envP->fault_occurred){
         schedule_log("Error", "Could not parse add_request request argument array");
         return NULL;
     }
 
-    int sid = mysql_add_schedule("dns", id, src, 0, interval, NULL);
+    int sid = mysql_add_schedule("dns", id, src, src_type, 0, 0, interval, NULL);
 
     if((int)id==0)
         schedule_log("Info", "Created DNS schedule to sensor %d with an interval of %d seconds - Schedule ID %d", (int) src, (int) interval, sid);
@@ -556,12 +671,9 @@ static xmlrpc_value * add_dns_schedule( xmlrpc_env *    const envP,
  		mysql_update_pid(sid, getpid());
 
     	while(1){
-	    	
-	    	if(!call("dns.request", (int) src, 0, NULL)){
-	    		schedule_log("Info", "Sent request from schedule id %d to serevr", sid);  
+	    	if(!send_request("dns.request", (int)src, (int)src_type, 0, 0, NULL, sid)){
                 mysql_update_status(sid, 1);	
 	    	}else{
-	    		schedule_log("Error", "Failed to send request from schedule id %d to server", sid);
 	    		mysql_update_status(sid, 0);
 	    	}
 
@@ -627,7 +739,6 @@ void * rpc_server(void * arg){
     xmlrpc_server_abyss_sig * oldHandlersP;
 
     xmlrpc_env_init(&env);
-
     xmlrpc_server_abyss_global_init(&env);
 
     registryP = xmlrpc_registry_new(&env);
@@ -671,7 +782,6 @@ void * rpc_server(void * arg){
     serverparm.log_file_name    = "/var/log/network-sensor-server/xmlrpc_log";
 
     xmlrpc_server_abyss_create(&env, &serverparm, XMLRPC_APSIZE(log_file_name), &serverP);
-    //xmlrpc_server_abyss_setup_sig(&env, serverP, &oldHandlersP);
 
     schedule_log("Info", "Started XML-RPC server");
 
@@ -684,30 +794,18 @@ void * rpc_server(void * arg){
 
     while(1){}
 
-    //xmlrpc_server_abyss_restore_sig(oldHandlersP);
-    //free(oldHandlersP);
-
     schedule_log("Info", "Stopping XML-RPC server");
 
     xmlrpc_server_abyss_destroy(serverP);
-
     xmlrpc_server_abyss_global_term();
-
-    /*xmlrpc_server_abyss(&env, &serverparm, XMLRPC_APSIZE(log_file_name));
-    if (env.fault_occurred) {
-        printf("xmlrpc_server_abyss() failed.  %s\n", env.fault_string);
-        exit(1);
-    }*/
 }
 
-int main(int argc, char ** argv){
-	
+int main(int argc, char ** argv){	
 	signal(SIGINT, closeLog);
     signal(SIGTERM, closeLog);
 
     //open log file
 	logs = fopen("/var/log/network-sensor-server/server.log", "a");
-
 	schedule_log("Info", "Strated scheduler");
 
 	//load in config
@@ -724,7 +822,5 @@ int main(int argc, char ** argv){
 	pthread_t pth;
     pthread_create(&pth, NULL, rpc_server, (void * ) 1);
 
-	while(1){
-		//printf("1");
-	}
+	while(1){}
 }

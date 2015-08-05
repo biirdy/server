@@ -13,9 +13,13 @@ create table udps(			udp_id integer NOT NULL AUTO_INCREMENT, sensor_id integer N
 create table dns(			dns_id integer NOT NULL AUTO_INCREMENT, dst_id integer NOT NULL, duration integer NOT NULL, time DATETIME NOT NULL, primary key(dns_id), foreign key(sensor_id) references sensors(sensor_id)) engine = InnoDB;
 create table dns_failure(	dns_id integer NOT NULL AUTO_INCREMENT, sensor_id integer NOT NULL, time DATETIME NOT NULL, primary key(dns_id), foreign key(sensor_id) references sensors(sensor_id)) engine = InnoDB;
 
-create table schedules(		schedule_id integer NOT NULL AUTO_INCREMENT, recipient integer NOT NULL, sensor integer NOT NULL, period integer NOT NULL description varchar(50), primary key(schedule_id), foreign key(recipient) references sensors(sensor_id), foreign key(sensor) references sensors(sensor_id)) engine = InnoDB;
-create table schdule_params( param_id integer NOT NULL AUTO_INCREMENT, schedule_id integer NOT NULL, param varchar(10) NOT NULL, value integer NOT NULL, primary key(param_id), foreign key(schedule_id) references schedules(schedule_id)) engine = InnoDB;
+#needs updating
+create table schedules(			schedule_id integer NOT NULL AUTO_INCREMENT, recipient integer NOT NULL, sensor integer NOT NULL, period integer NOT NULL description varchar(50), primary key(schedule_id), foreign key(recipient) references sensors(sensor_id), foreign key(sensor) references sensors(sensor_id)) engine = InnoDB;
+create table schdule_params( 	param_id integer NOT NULL AUTO_INCREMENT, schedule_id integer NOT NULL, param varchar(10) NOT NULL, value integer NOT NULL, primary key(param_id), foreign key(schedule_id) references schedules(schedule_id)) engine = InnoDB;
 alter table schedule_params add unique index(param, schedule_id);
+
+create table groups(			group_id integer NOT NULL AUTO_INCREMENT, name varchar(20) NOT NULL, description varchar(50), num_sensors integer NOT NULL, primary key(group_id)) engine = InnoDB;
+create table group_membership(	id integer NOT NULL AUTO_INCREMENT, group_id integer NOT NULL, sensor_id integer NOT NULL, primary key(id), foreign key(group_id) references groups(group_id), foreign key(sensor_id) references sensors(sensor_id)) engine = InnoDB;
 
 drop database if exists members;
 create database members;
