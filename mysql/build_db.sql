@@ -14,8 +14,9 @@ create table dns(			dns_id integer NOT NULL AUTO_INCREMENT, dst_id integer NOT N
 create table dns_failure(	dns_id integer NOT NULL AUTO_INCREMENT, sensor_id integer NOT NULL, time DATETIME NOT NULL, primary key(dns_id), foreign key(sensor_id) references sensors(sensor_id)) engine = InnoDB;
 
 #needs updating
-create table schedules(			schedule_id integer NOT NULL AUTO_INCREMENT, recipient integer NOT NULL, sensor integer NOT NULL, period integer NOT NULL description varchar(50), primary key(schedule_id), foreign key(recipient) references sensors(sensor_id), foreign key(sensor) references sensors(sensor_id)) engine = InnoDB;
-create table schdule_params( 	param_id integer NOT NULL AUTO_INCREMENT, schedule_id integer NOT NULL, param varchar(10) NOT NULL, value integer NOT NULL, primary key(param_id), foreign key(schedule_id) references schedules(schedule_id)) engine = InnoDB;
+create table schedules(				schedule_id integer NOT NULL AUTO_INCREMENT, name varchar(10) NOT NULL, description varchar(50), period integer NOT NULL, primary key(schedule_id)) engine = InnoDB;
+create table schedule_measurements(	measurement_id integer NOT NULL AUTO_INCREMENT, destination integer NOT NULL, source integer NOT NULL, period integer NOT NULL, primary key(measurement_id), foreign key(destination) references sensors(sensor_id), foreign key(sensor) references sensors(sensor_id)) engine = InnoDB;
+create table schdule_params( 		param_id integer NOT NULL AUTO_INCREMENT, schedule_id integer NOT NULL, param varchar(10) NOT NULL, value integer NOT NULL, primary key(param_id), foreign key(schedule_id) references schedules(schedule_id)) engine = InnoDB;
 alter table schedule_params add unique index(param, schedule_id);
 
 create table groups(			group_id integer NOT NULL AUTO_INCREMENT, name varchar(20) NOT NULL, description varchar(50), num_sensors integer NOT NULL, primary key(group_id)) engine = InnoDB;
