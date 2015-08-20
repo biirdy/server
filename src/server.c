@@ -357,21 +357,37 @@ static xmlrpc_value * dns_request(  xmlrpc_env *    const envP,
                                     void *          const serverInfo,
                                     void *          const channelInfo){
 
+    int params = xmlrpc_array_size(envP, paramArrayP);
+    server_log("Info", "DNS request %d params", params);
+
     xmlrpc_int32 id;
+    const char * addr;
+    const char * server;
 
     //parse argument array
-    xmlrpc_decompose_value(envP, paramArrayP, "(i)", &id);
+    if(params == 1)
+        xmlrpc_decompose_value(envP, paramArrayP, "(i)", &id);
+    else if(params == 2)
+        xmlrpc_decompose_value(envP, paramArrayP, "(is)", &id, &addr);
+    else
+        xmlrpc_decompose_value(envP, paramArrayP, "(iss)", &id, &addr, &server);
+
     if (envP->fault_occurred){
         server_log("Error", "Could not parse udp request argument array");
         return NULL;
     }
-
+    
     //get socket
     struct nlist * sck = lookup((int) id);
 
     if(sck != NULL){
         //create request
         request_init((struct srrp_request *) send_buff, SRRP_DNS, 1, server_ip);
+
+        if(params > 1)
+            add_param_string((struct srrp_request *) send_buff, SRRP_DN, (char *)addr);
+        if(params > 2)
+            add_param_string((struct srrp_request *) send_buff, SRRP_SERVER, (char *)server);
 
         int send_result = send(sck->socket, send_buff, request_size((struct srrp_request *) send_buff), 0);
         
@@ -904,7 +920,7 @@ int main(int argc, char ** argv) {
 
                 server_log("Info", "Loacal IP %s", inet_ntoa(local_ip));
             }else{
-                server_log("Error", "Unknow response type %d", response->type);
+                server_log("Error", "Unknow response type %d - %d bytes", response->type, bytes);
                 close(newSocket);
                 continue;
             }
@@ -988,17 +1004,6 @@ int main(int argc, char ** argv) {
                     server_log("Info", "Sending iperf request to sensor %d", id);
                     send(newSocket, send_buff, request_size((struct srrp_request *) send_buff), 0);
 
-                    //sensor -> sensor iperf request experiment
-                    /*struct in_addr test_ip;
-                    inet_aton("194.80.39.125", &test_ip);
-                    
-                    sleep(15);
-                    if(id == 330){
-                        request_init((struct srrp_request *) send_buff, SRRP_BW, 408, iplookup(408)->ip);
-                        add_param((struct srrp_request *) send_buff, SRRP_DUR, 10);
-                        send(newSocket, send_buff, request_size((struct srrp_request *) send_buff), 0);
-                    }*/
-
                     sleep(config.tcp_bw_interval);
                 }
             }
@@ -1007,10 +1012,12 @@ int main(int argc, char ** argv) {
             int dns_pid;
             if((dns_pid = fork()) == 0){
                 //inital sleep
-                sleep(50);
+                sleep(5);
 
                 //build the request
                 request_init((struct srrp_request *) send_buff, SRRP_DNS, 1, server_ip);       //ID & IP for server - temp
+                add_param_string((struct srrp_request *) send_buff, SRRP_DN, "google.com");
+                add_param_string((struct srrp_request *) send_buff, SRRP_SERVER, "148.88.65.53");
 
                 while(1){
                     if(!mysql_sensor_connected(id))
@@ -1018,7 +1025,7 @@ int main(int argc, char ** argv) {
 
                     server_log("Info", "Sending dns request to sensor %d", id);
                     send(newSocket, send_buff, request_size((struct srrp_request *) send_buff), 0);
-                    sleep(config.dns_interval);      
+                    sleep(10);      
                 }
             }
 

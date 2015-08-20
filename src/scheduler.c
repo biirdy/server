@@ -137,7 +137,7 @@ static void deamonise(){
     schedule_log("Info", "Deamonised");
 }
 
-int mysql_add_schedule(char * method_name, int mid, int sid, int src, int src_type, int dst, int dst_type, int delay, int param[]){
+int mysql_add_schedule(char * method_name, int mid, int sid, int src, int src_type, int dst, int dst_type, int delay, int param[], char * str_param[]){
 	MYSQL * contd;
     contd = mysql_init(NULL);
 
@@ -153,7 +153,7 @@ int mysql_add_schedule(char * method_name, int mid, int sid, int src, int src_ty
 
     //exception for dns schedule with no recipient - should fix 
     if(strcmp(method_name, "dns") == 0){
-    	query = "insert into schedule_measurements(measurement_id, schedule_id, source_id, source_type, method, delay, active) VALUES('%d', '%d', '%d', '%d', '%s', '%d', '%d') ON DUPLICATE KEY UPDATE schedule_id=VALUES(schedule_id), source_id=VALUES(source_id), source_type=VALUES(source_type), delat=VALUES(delay), method=VALUES(method), active=VALUES(active), measurement_id=LAST_INSERT_ID(measurement_id); \n";
+    	query = "insert into schedule_measurements(measurement_id, schedule_id, source_id, source_type, method, delay, active) VALUES('%d', '%d', '%d', '%d', '%s', '%d', '%d') ON DUPLICATE KEY UPDATE schedule_id=VALUES(schedule_id), source_id=VALUES(source_id), source_type=VALUES(source_type), delay=VALUES(delay), method=VALUES(method), active=VALUES(active), measurement_id=LAST_INSERT_ID(measurement_id); \n";
     	sprintf(buff, query, mid, sid, src, src_type, method_name, delay, 1);
     }else{
     	query = "insert into schedule_measurements(measurement_id, schedule_id, source_id, source_type, destination_id, destination_type, method, delay, active) VALUES('%d', '%d', '%d', '%d', '%d', '%d', '%s', '%d', '%d') ON DUPLICATE KEY UPDATE schedule_id=VALUES(schedule_id), source_id=VALUES(source_id), source_type=VALUES(source_type), destination_id=VALUES(destination_id), destination_type=(destination_type), delay=VALUES(delay), method=VALUES(method), active=VALUES(active), measurement_id=LAST_INSERT_ID(measurement_id); \n";
@@ -182,8 +182,9 @@ int mysql_add_schedule(char * method_name, int mid, int sid, int src, int src_ty
                 insert into schedule_params(measurement_id, param, value) VALUES('%d', 'dscp_flag', '%d') ON DUPLICATE KEY UPDATE value=VALUES(value);\n";
         sprintf(buff, query, id, param[0], id, param[1], id, param[2], id, param[3]);
     }else if(strcmp(method_name, "dns") == 0){
-        query = "insert into schedule_params(measurement_id, param, value) VALUES('%d', 'abcd', '1') ON DUPLICATE KEY UPDATE value=VALUES(value);\n";
-        sprintf(buff, query, id);
+        query = "insert into schedule_params(measurement_id, param, value) VALUES('%d', 'server', '%s') ON DUPLICATE KEY UPDATE value=VALUES(value);\
+                insert into schedule_params(measurement_id, param, value) VALUES('%d', 'domain_name', '%s') ON DUPLICATE KEY UPDATE value=VALUES(value);\n";
+        sprintf(buff, query, id, str_param[0], id, str_param[1]);
     }
 
     if (mysql_query(contd, buff)) {
@@ -308,7 +309,7 @@ void endSchedule(int sig){
 /*
 *
 */
-int call(char * method_name, int src, int dst, int param[]){
+int call(char * method_name, int src, int dst, int param[], char * str_param[]){
 	xmlrpc_env env;
     xmlrpc_value * resultP;
     xmlrpc_int32 success;
@@ -327,7 +328,7 @@ int call(char * method_name, int src, int dst, int param[]){
     }else if(strcmp(method_name, "udp.request") == 0){
    		resultP = xmlrpc_client_call(&env, serverUrl, "udp.request", "(iiiiii)", (xmlrpc_int32) src, (xmlrpc_int32) dst, (xmlrpc_int32) param[0], (xmlrpc_int32) param[1], (xmlrpc_int32) param[2], (xmlrpc_int32) param[3]);
     }else if(strcmp(method_name, "dns.request") == 0){
-   		resultP = xmlrpc_client_call(&env, serverUrl, "dns.request", "(i)", (xmlrpc_int32) src);
+   		resultP = xmlrpc_client_call(&env, serverUrl, "dns.request", "(iss)", (xmlrpc_int32) src, str_param[0], str_param[1]);
     }else{
     	schedule_log("Error", "Unrecognised method name %s", method_name);
    		return 1;
@@ -351,14 +352,14 @@ int call(char * method_name, int src, int dst, int param[]){
     return (int) success;
 }
 
-int send_request(char * method_name, int src, int src_type, int dst, int dst_type, int param[], int sid){
+int send_request(char * method_name, int src, int src_type, int dst, int dst_type, int param[], char * str_param[], int sid){
 
     int faults = 0;
 
     //neither source or destination is a group
     if(src_type == 0 && dst_type == 0){
         schedule_log("Info", "Schedule %d source and destination are both sensors - sending single request to server", sid);
-        faults = call(method_name, src, dst, param);
+        faults = call(method_name, src, dst, param, str_param);
         schedule_log("Info", "Schedule %d request sent with %d faults", sid, faults);
         return faults;
     }
@@ -467,7 +468,7 @@ int send_request(char * method_name, int src, int src_type, int dst, int dst_typ
     for(i = 0; i < src_cnt; i++){
         for(j = 0; j < dst_cnt; j++){
             if(srcs[i] != dsts[j])      //dont call if src and dst are the same sensor
-                faults+=call(method_name, srcs[i], dsts[j], param);
+                faults+=call(method_name, srcs[i], dsts[j], param, str_param);
         }
     }
 
@@ -498,7 +499,7 @@ static xmlrpc_value * add_rtt_schedule( xmlrpc_env *    const envP,
         schedule_log("Info", "Starting RTT measurement ", (int) mid);
 
     int param[1] = {(int) ittr};
-   	mid = mysql_add_schedule("rtt", mid, sid, src, src_type, dst, dst_type, delay, param);
+   	mid = mysql_add_schedule("rtt", mid, sid, src, src_type, dst, dst_type, delay, param, NULL);
 
     if(!mid)
         return NULL;
@@ -516,7 +517,7 @@ static xmlrpc_value * add_rtt_schedule( xmlrpc_env *    const envP,
 
     	while(1){
             schedule_log("Info", "Measurement %d invoked", mid);
-	    	if(!send_request("ping.request", (int)src, (int)src_type, (int)dst, (int)dst_type, param, mid)){
+	    	if(!send_request("ping.request", (int)src, (int)src_type, (int)dst, (int)dst_type, param, NULL, mid)){
                 mysql_update_status(mid, 1);  	
 	    	}else{
 	    		mysql_update_status(mid, 0);
@@ -546,7 +547,7 @@ static xmlrpc_value * add_tcp_schedule( xmlrpc_env *    const envP,
     }
 
     int param[1] = {(int) dur};
-    mid = mysql_add_schedule("tcp", mid, sid, src, src_type, dst, dst_type, delay, param);
+    mid = mysql_add_schedule("tcp", mid, sid, src, src_type, dst, dst_type, delay, param, NULL);
 
     if(!mid)
         return NULL;
@@ -568,7 +569,7 @@ static xmlrpc_value * add_tcp_schedule( xmlrpc_env *    const envP,
         sleep((int) delay);
 
     	while(1){
-	    	if(!send_request("iperf.request", (int)src, (int)src_type, (int)dst, (int)dst_type, param, mid)){
+	    	if(!send_request("iperf.request", (int)src, (int)src_type, (int)dst, (int)dst_type, param, NULL, mid)){
                 mysql_update_status(mid, 1);
 	    	}else{
 	    		mysql_update_status(mid, 0);
@@ -598,7 +599,7 @@ static xmlrpc_value * add_udp_schedule( xmlrpc_env *    const envP,
     }
 
     int param[4] = {(int) speed, (int) size, (int) dur, (int) dscp};
-    mid = mysql_add_schedule("udp", mid, sid, src, src_type, dst, dst_type, delay, param);
+    mid = mysql_add_schedule("udp", mid, sid, src, src_type, dst, dst_type, delay, param, NULL);
 
     if(!mid)
         return NULL;
@@ -620,7 +621,7 @@ static xmlrpc_value * add_udp_schedule( xmlrpc_env *    const envP,
         sleep((int) delay);
 
     	while(1){
-	    	if(!send_request("udp.request", (int)src, (int)src_type, (int)dst, (int)dst_type, param, mid)){
+	    	if(!send_request("udp.request", (int)src, (int)src_type, (int)dst, (int)dst_type, param, NULL, mid)){
                 mysql_update_status(mid, 1);
 	    	}else{
 	    		mysql_update_status(mid, 0);
@@ -641,15 +642,20 @@ static xmlrpc_value * add_dns_schedule( xmlrpc_env *    const envP,
                                     void *          const channelInfo){
 
     xmlrpc_int32 mid, sid, src, src_type, interval, delay;
+    const char * server;
+    const char * domain_name;
+
+    int params = xmlrpc_array_size(envP, paramArrayP);
 
     //parse argument array
-    xmlrpc_decompose_value(envP, paramArrayP, "(iiiiii)", &mid, &sid, &src, &src_type, &interval, &delay);
+    xmlrpc_decompose_value(envP, paramArrayP, "(iiiissii)", &mid, &sid, &src, &src_type, &domain_name, &server, &interval, &delay); 
     if (envP->fault_occurred){
         schedule_log("Error", "Could not parse add_request request argument array");
         return NULL;
     }
 
-    mid = mysql_add_schedule("dns", mid, sid, src, src_type, 0, 0, delay, NULL);
+    char * str_param[] = {strdup(domain_name), strdup(server)};
+    mid = mysql_add_schedule("dns", mid, sid, src, src_type, 0, 0, delay, NULL, str_param);
 
     if(!mid)
         return;
@@ -670,7 +676,7 @@ static xmlrpc_value * add_dns_schedule( xmlrpc_env *    const envP,
         sleep((int) delay);
 
     	while(1){
-	    	if(!send_request("dns.request", (int)src, (int)src_type, 0, 0, NULL, mid)){
+	    	if(!send_request("dns.request", (int)src, (int)src_type, 0, 0, NULL, str_param, mid)){
                 mysql_update_status(mid, 1);	
 	    	}else{
 	    		mysql_update_status(mid, 0);
