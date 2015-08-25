@@ -182,8 +182,8 @@ int mysql_add_schedule(char * method_name, int mid, int sid, int src, int src_ty
                 insert into schedule_params(measurement_id, param, value) VALUES('%d', 'dscp_flag', '%d') ON DUPLICATE KEY UPDATE value=VALUES(value);\n";
         sprintf(buff, query, id, param[0], id, param[1], id, param[2], id, param[3]);
     }else if(strcmp(method_name, "dns") == 0){
-        query = "insert into schedule_params(measurement_id, param, value) VALUES('%d', 'server', '%s') ON DUPLICATE KEY UPDATE value=VALUES(value);\
-                insert into schedule_params(measurement_id, param, value) VALUES('%d', 'domain_name', '%s') ON DUPLICATE KEY UPDATE value=VALUES(value);\n";
+        query = "insert into schedule_params(measurement_id, param, value) VALUES('%d', 'domain_name', '%s') ON DUPLICATE KEY UPDATE value=VALUES(value);\
+                insert into schedule_params(measurement_id, param, value) VALUES('%d', 'server', '%s') ON DUPLICATE KEY UPDATE value=VALUES(value);\n";
         sprintf(buff, query, id, str_param[0], id, str_param[1]);
     }
 

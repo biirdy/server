@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 #include <sys/mman.h>   //not needed
 
@@ -29,9 +30,7 @@
 #include "ini/ini.h"
 #include "ini/ini.c"
 
-
 MYSQL *conn;
-FILE* logs;
 int deamon = 0;
 char recv_buff[1024];
 char send_buff[1024];
@@ -123,7 +122,53 @@ struct iplist{
     struct in_addr ip;
 };
 
+void rotate_name(const char *oname, char *nname){
+    const char  *ptr;
+    int         number, plen;
+
+    for(ptr = oname; *ptr && !isdigit(*ptr); ptr++)
+            ;
+    if(*ptr == '\0')
+            number = 0;
+    else
+            number = atoi(ptr);
+    plen = ptr - oname;
+    if(plen <= 0)
+            return;
+    memcpy(nname, oname, plen);
+    sprintf(nname + plen, "%d", number + 1);
+}
+
 void server_log(const char * type, const char * fmt, ...){
+
+    struct stat st;
+    stat("/var/log/network-sensor-server/server.log", &st);
+    int size = st.st_size;
+
+    if(size > 1024 * 1024){
+        
+        DIR *dp;
+        struct dirent *ep;
+        char * dir = "/var/log/network-sensor-server/";     
+        dp = opendir (dir);
+
+        if (dp != NULL){
+            while (ep = readdir (dp)){
+                char nname[100];
+                char odir[100];
+                char ndir[100];
+                rotate_name(ep->d_name, nname);
+                sprintf(odir, "%s%s", dir, (char *) ep->d_name);
+                sprintf(ndir, "%s%s", dir, nname);
+                rename(odir, ndir);
+            }
+            (void) closedir (dp);
+        }
+    }
+
+    //log files
+    FILE* logs = fopen("/var/log/network-sensor-server/server.log", "a");
+
     //format message
     va_list args; 
     va_start(args, fmt);
@@ -148,6 +193,8 @@ void server_log(const char * type, const char * fmt, ...){
     // if not deamon - print logs
     if(!deamon)
         printf("%s - %s\n", type, msg);
+
+    fclose(logs);
 }
 
 #define HASHSIZE 101
@@ -544,10 +591,8 @@ static void deamonise(){
 }
 
 void closeLog(int sig){
-
     mysql_remove_all();
     server_log("Info", "Server stopped");
-    fclose(logs);
     exit(1);
 }
 
@@ -823,9 +868,6 @@ int main(int argc, char ** argv) {
         exit(1);
     }
 
-    //log files
-    logs = fopen("/var/log/network-sensor-server/server.log", "a");
-
     server_log("Info" , "Server Started");
 
     //parse configurations from file
@@ -1025,7 +1067,7 @@ int main(int argc, char ** argv) {
 
                     server_log("Info", "Sending dns request to sensor %d", id);
                     send(newSocket, send_buff, request_size((struct srrp_request *) send_buff), 0);
-                    sleep(10);      
+                    sleep(config.dns_interval);      
                 }
             }
 
@@ -1213,8 +1255,6 @@ int main(int argc, char ** argv) {
     }
 
     close(welcomeSocket);
-
-    fclose(logs);
     closelog();
 
     return 0;
