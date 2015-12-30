@@ -17,14 +17,8 @@
 #include "ini/ini.h"
 #include "ini/ini.c"
 
-#define RTT 1
-#define TCP 2
-#define UDP 3
-#define DNS 4
-
 const char * const serverUrl = "http://localhost:8080/RPC2";
 
-FILE* logs;
 int deamon = 0;
 
 int global_mid;
@@ -44,6 +38,9 @@ typedef struct{
 configuration config;
 
 void schedule_log(const char * type, const char * fmt, ...){
+
+    FILE* logs = fopen("/var/log/weperf/server/server.log", "a");
+
     //format message
     va_list args; 
     va_start(args, fmt);
@@ -68,6 +65,8 @@ void schedule_log(const char * type, const char * fmt, ...){
     // if not deamon - print logs
     if(!deamon)
         printf("%s - %s\n", type, msg);
+
+    fclose(logs);
 }
 
 static int handler(void* user, const char* section, const char* name, const char* value){
@@ -293,10 +292,9 @@ int mysql_update_status(int mid, int status){
    return 1;
 }
 
-void closeLog(int sig){
+void stop_scheduler(int sig){
     schedule_log("Info", "Scheduler stopped");
     mysql_stop_all();
-    fclose(logs);
     exit(1);
 }
 
@@ -309,7 +307,7 @@ void endSchedule(int sig){
 /*
 *
 */
-int call(char * method_name, int src, int dst, int param[], char * str_param[]){
+int call(char * method_name, int src, int dst, int mid, int param[], char * str_param[]){
 	xmlrpc_env env;
     xmlrpc_value * resultP;
     xmlrpc_int32 success;
@@ -322,13 +320,13 @@ int call(char * method_name, int src, int dst, int param[], char * str_param[]){
     dieIfFaultOccurred(&env);
 
  	if(strcmp(method_name, "ping.request") == 0){
-   		resultP = xmlrpc_client_call(&env, serverUrl, "ping.request", "(iii)", (xmlrpc_int32) src, (xmlrpc_int32) dst, (xmlrpc_int32) param[0]);
+   		resultP = xmlrpc_client_call(&env, serverUrl, "ping.request", "(iiii)", (xmlrpc_int32) src, (xmlrpc_int32) dst, (xmlrpc_int32) mid, (xmlrpc_int32) param[0]);
     }else if(strcmp(method_name, "iperf.request") == 0){
-   		resultP = xmlrpc_client_call(&env, serverUrl, "iperf.request", "(iii)", (xmlrpc_int32) src, (xmlrpc_int32) dst, (xmlrpc_int32) param[0]);
+   		resultP = xmlrpc_client_call(&env, serverUrl, "iperf.request", "(iiii)", (xmlrpc_int32) src, (xmlrpc_int32) dst, (xmlrpc_int32) mid, (xmlrpc_int32) param[0]);
     }else if(strcmp(method_name, "udp.request") == 0){
-   		resultP = xmlrpc_client_call(&env, serverUrl, "udp.request", "(iiiiii)", (xmlrpc_int32) src, (xmlrpc_int32) dst, (xmlrpc_int32) param[0], (xmlrpc_int32) param[1], (xmlrpc_int32) param[2], (xmlrpc_int32) param[3]);
+   		resultP = xmlrpc_client_call(&env, serverUrl, "udp.request", "(iiiiiii)", (xmlrpc_int32) src, (xmlrpc_int32) dst, (xmlrpc_int32) mid, (xmlrpc_int32) param[0], (xmlrpc_int32) param[1], (xmlrpc_int32) param[2], (xmlrpc_int32) param[3]);
     }else if(strcmp(method_name, "dns.request") == 0){
-   		resultP = xmlrpc_client_call(&env, serverUrl, "dns.request", "(iss)", (xmlrpc_int32) src, str_param[0], str_param[1]);
+   		resultP = xmlrpc_client_call(&env, serverUrl, "dns.request", "(iiss)", (xmlrpc_int32) src, (xmlrpc_int32) mid, str_param[0], str_param[1]);
     }else{
     	schedule_log("Error", "Unrecognised method name %s", method_name);
    		return 1;
@@ -352,15 +350,15 @@ int call(char * method_name, int src, int dst, int param[], char * str_param[]){
     return (int) success;
 }
 
-int send_request(char * method_name, int src, int src_type, int dst, int dst_type, int param[], char * str_param[], int sid){
+int send_request(char * method_name, int src, int src_type, int dst, int dst_type, int param[], char * str_param[], int mid){
 
     int faults = 0;
 
     //neither source or destination is a group
     if(src_type == 0 && dst_type == 0){
-        schedule_log("Info", "Schedule %d source and destination are both sensors - sending single request to server", sid);
-        faults = call(method_name, src, dst, param, str_param);
-        schedule_log("Info", "Schedule %d request sent with %d faults", sid, faults);
+        schedule_log("Info", "Schedule %d source and destination are both sensors - sending single request to server", mid);
+        faults = call(method_name, src, dst, mid, param, str_param);
+        schedule_log("Info", "Schedule %d request sent with %d faults", mid, faults);
         return faults;
     }
 
@@ -383,7 +381,7 @@ int send_request(char * method_name, int src, int src_type, int dst, int dst_typ
 
     //source is a group
     if(src_type == 1){
-        schedule_log("Info", "Schedule %d source is a group - getting group members", sid);
+        schedule_log("Info", "Schedule %d source is a group - getting group members", mid);
 
         query = "SELECT sensor_id FROM group_membership WHERE group_id ='%d'\n";
         sprintf(buff, query, src);
@@ -405,7 +403,7 @@ int send_request(char * method_name, int src, int src_type, int dst, int dst_typ
         src_cnt = mysql_num_rows(result);
         srcs = malloc(sizeof(int) * src_cnt);
 
-        schedule_log("Info", "Schedule %d source has %d members", sid, src_cnt);
+        schedule_log("Info", "Schedule %d source has %d members", mid, src_cnt);
 
         //laod results into sources array
         MYSQL_ROW row;
@@ -423,7 +421,7 @@ int send_request(char * method_name, int src, int src_type, int dst, int dst_typ
 
     //destination is a group
     if(dst_type == 1){
-        schedule_log("Info", "Schedule %d destination is a group - getting group members", sid);
+        schedule_log("Info", "Schedule %d destination is a group - getting group members", mid);
 
         query = "SELECT sensor_id FROM group_membership WHERE group_id ='%d'\n";
         sprintf(buff, query, dst);
@@ -445,7 +443,7 @@ int send_request(char * method_name, int src, int src_type, int dst, int dst_typ
         dst_cnt = mysql_num_rows(result);
         dsts = malloc(sizeof(int) * dst_cnt);
 
-        schedule_log("Info", "Schedule %d destination has %d members", sid, dst_cnt);
+        schedule_log("Info", "Schedule %d destination has %d members", mid, dst_cnt);
 
         //laod results into sources array
         MYSQL_ROW row;
@@ -463,16 +461,18 @@ int send_request(char * method_name, int src, int src_type, int dst, int dst_typ
 
     mysql_close(contd);
 
-    schedule_log("Info", "Sending all schedule %d requests to server.", sid);
+    schedule_log("Info", "Sending all schedule %d requests to server.", mid);
 
     for(i = 0; i < src_cnt; i++){
         for(j = 0; j < dst_cnt; j++){
-            if(srcs[i] != dsts[j])      //dont call if src and dst are the same sensor
-                faults+=call(method_name, srcs[i], dsts[j], param, str_param);
+            if(srcs[i] != dsts[j]){      //dont call if src and dst are the same sensor
+                faults += call(method_name, srcs[i], dsts[j], mid, param, str_param);
+                sleep(1);
+            }
         }
     }
 
-    schedule_log("Info", "All schedule %d requests sent with %d faults", sid, faults);
+    schedule_log("Info", "All schedule %d requests sent with %d faults", mid, faults);
     return faults;  
 }
 
@@ -516,7 +516,6 @@ static xmlrpc_value * add_rtt_schedule( xmlrpc_env *    const envP,
         sleep((int) delay);
 
     	while(1){
-            schedule_log("Info", "Measurement %d invoked", mid);
 	    	if(!send_request("ping.request", (int)src, (int)src_type, (int)dst, (int)dst_type, param, NULL, mid)){
                 mysql_update_status(mid, 1);  	
 	    	}else{
@@ -717,15 +716,13 @@ static xmlrpc_value * stop_schedule( xmlrpc_env *    const envP,
 }
 
 int main(int argc, char ** argv){	
-	signal(SIGINT, closeLog);
-    signal(SIGTERM, closeLog);
+	signal(SIGINT, stop_scheduler);
+    signal(SIGTERM, stop_scheduler);
 
-    //open log file
-	logs = fopen("/var/log/network-sensor-server/server.log", "a");
 	schedule_log("Info", "Strated scheduler");
 
 	//load in config
-	if (ini_parse("/etc/network-sensor-server/config.ini", handler, &config) < 0) {
+	if (ini_parse("/etc/weperf/server-config.ini", handler, &config) < 0) {
         schedule_log("Error", "Can't load 'config.ini'\n");
         return 1;
     }
@@ -805,7 +802,7 @@ int main(int argc, char ** argv){
     serverparm.port_number      = config.scheduler_rpc_port;
     serverparm.runfirst         = NULL;
     serverparm.runfirst_arg     = NULL;
-    serverparm.log_file_name    = "/var/log/network-sensor-server/xmlrpc_log";
+    serverparm.log_file_name    = "/var/log/weperf/rpc/sch_xmlrpc_log";
 
     xmlrpc_server_abyss_create(&env, &serverparm, XMLRPC_APSIZE(log_file_name), &serverP);
 

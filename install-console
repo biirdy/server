@@ -10,9 +10,9 @@ rm -R console/
 ./sudo-www
 
 #create log file and symbolic link
-touch /var/log/network-sensor-server/server.log
+touch /var/log/weperf/server/server.log
 rm /var/www/html/logs/server.log
-ln -s /var/log/network-sensor-server/server.log /var/www/html/logs/server.log
+ln -s /var/log/weperf/server/server.log /var/www/html/logs/server.log
 
 
 

@@ -1,17 +1,26 @@
 #!/bin/bash
 
-#executables
-cp bin/server /usr/bin/network-sensor-server
-cp bin/scheduler /usr/bin/scheduler
+#install executables
+cp bin/server /usr/bin/weperf-server
+cp bin/scheduler /usr/bin/weperf-scheduler
 
-#config file
-mkdir -p /etc/network-sensor-server
-if ! test -e /etc/network-sensor-server/config.ini; then
-	cp config/config.ini /etc/network-sensor-server/config.ini
+#make config dir
+mkdir -p /etc/weperf
+if ! test -e /etc/weperf/server-config.ini; then
+	#get server interface name - should have already been placed in config/server-config.ini - default eth0 
+	interface=$(awk -F "=" '/server_interface/ {print $2}' config/server-config.ini)
+	
+	#install config file
+	cp config/server-config.ini /etc/weperf/server-config.ini
+
+	#put MAC address of interface to config file - could be done manually if step missed
+	sed -i "/server_addr/a server_ether=$(ifconfig $interface | grep -o -E '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}')" /etc/weperf/server-config.ini
 fi
 
 #add service 
-cp service/network-sensor-server /etc/init.d/network-sensor-server
+cp service/weperf /etc/init.d/weperf
 
 #create log directory
-mkdir -p /var/log/network-sensor-server
+mkdir -p /var/log/weperf/server
+mkdir -p /var/log/weperf/rpc
+mkdir -p /var/log/weperf/iperf

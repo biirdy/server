@@ -18,8 +18,6 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
-#include <sys/mman.h>   //not needed
-
 #include <pthread.h>
 
 #include <xmlrpc-c/base.h>
@@ -52,6 +50,7 @@ typedef struct{
     //server
     const char* server_addr;
     const char* server_pub_addr;
+    const char* server_ether;
     int server_port;
     int server_timeout;
 
@@ -73,31 +72,33 @@ static int handler(void* user, const char* section, const char* name, const char
     #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
     if (MATCH("rpc", "server_rpc_port")) {
         pconfig->server_rpc_port = atoi(value);
-    } else if (MATCH("database", "mysql_addr")) {
+    }else if (MATCH("database", "mysql_addr")){
         pconfig->mysql_addr = strdup(value);
-    } else if (MATCH("database", "mysql_usr")) {
+    }else if (MATCH("database", "mysql_usr")){
         pconfig->mysql_usr = strdup(value);
-    } else if (MATCH("database", "mysql_pass")) {
+    }else if (MATCH("database", "mysql_pass")){
         pconfig->mysql_pass = strdup(value);
-    } else if (MATCH("server", "server_addr")) {
+    }else if (MATCH("server", "server_addr")){
         pconfig->server_addr = strdup(value);
-    } else if (MATCH("server", "server_pub_addr")) {
+    }else if (MATCH("server", "server_pub_addr")){
         pconfig->server_pub_addr = strdup(value);
-    } else if (MATCH("server", "server_port")) {
+    }else if (MATCH("server", "server_port")){
         pconfig->server_port = atoi(value);
-    } else if (MATCH("server", "server_timeout")) {
+    }else if (MATCH("server", "server_timeout")){
         pconfig->server_timeout = atoi(value);
-    } else if (MATCH("iperf", "tcp_iperf_port")) {
+    }else if (MATCH("server", "server_ether")){
+        pconfig->server_ether = strdup(value);
+    }else if (MATCH("iperf", "tcp_iperf_port")){
         pconfig->tcp_iperf_port = atoi(value);
-    } else if (MATCH("iperf", "udp_iperf_port")) {
+    }else if (MATCH("iperf", "udp_iperf_port")){
         pconfig->udp_iperf_port = atoi(value);
-    } else if (MATCH("interval", "rtt_interval")) {
+    }else if (MATCH("interval", "rtt_interval")){
         pconfig->rtt_interval = atoi(value);
-    } else if (MATCH("interval", "tcp_bw_interval")) {
+    }else if (MATCH("interval", "tcp_bw_interval")){
         pconfig->tcp_bw_interval = atoi(value);
-    } else if (MATCH("interval", "dns_interval")) {
+    }else if (MATCH("interval", "dns_interval")){
         pconfig->dns_interval = atoi(value);
-    } else {
+    }else {
         return 0;  /* unknown section/name, error */
     }
     return 1;
@@ -142,14 +143,15 @@ void rotate_name(const char *oname, char *nname){
 void server_log(const char * type, const char * fmt, ...){
 
     struct stat st;
-    stat("/var/log/network-sensor-server/server.log", &st);
+    stat("/var/log/weperf/server/server.log", &st);
     int size = st.st_size;
 
+    //increment all log file versions
     if(size > 1024 * 1024){
         
         DIR *dp;
         struct dirent *ep;
-        char * dir = "/var/log/network-sensor-server/";     
+        char * dir = "/var/log/weperf/server";     
         dp = opendir (dir);
 
         if (dp != NULL){
@@ -167,7 +169,7 @@ void server_log(const char * type, const char * fmt, ...){
     }
 
     //log files
-    FILE* logs = fopen("/var/log/network-sensor-server/server.log", "a");
+    FILE* logs = fopen("/var/log/weperf/server/server.log", "a");
 
     //format message
     va_list args; 
@@ -270,10 +272,10 @@ static xmlrpc_value * iperf_request(xmlrpc_env *   const envP,
            void *         const serverInfo,
            void *         const channelInfo) {
 
-    xmlrpc_int32 id, dst_id, length;
+    xmlrpc_int32 id, dst_id, m_id, length;
 
     //parse argument array
-    xmlrpc_decompose_value(envP, paramArrayP, "(iii)", &id, &dst_id, &length);
+    xmlrpc_decompose_value(envP, paramArrayP, "(iiii)", &id, &dst_id, &m_id, &length);
     if (envP->fault_occurred){
         server_log("Error", "Could not parse iperf request argument array");
         return NULL;
@@ -288,7 +290,7 @@ static xmlrpc_value * iperf_request(xmlrpc_env *   const envP,
     if(sck != NULL && dst_ip != NULL){
 
         //create request
-        request_init((struct srrp_request *) send_buff, SRRP_BW, (int) dst_id, dst_ip->ip); 
+        request_init((struct srrp_request *) send_buff, SRRP_BW, (int) dst_id, dst_ip->ip, (int) m_id); 
         add_param((struct srrp_request *) send_buff, SRRP_DUR, (int) length);
 
         //send
@@ -314,10 +316,10 @@ static xmlrpc_value * ping_request( xmlrpc_env *    const envP,
                                     void *          const serverInfo,
                                     void *          const channelInfo){
 
-    xmlrpc_int32 id, dst_id, iterations;
+    xmlrpc_int32 id, dst_id, m_id, iterations;
 
     //parse argument array
-    xmlrpc_decompose_value(envP, paramArrayP, "(iii)", &id, &dst_id, &iterations);
+    xmlrpc_decompose_value(envP, paramArrayP, "(iiii)", &id, &dst_id, &m_id, &iterations);
     if (envP->fault_occurred){
         server_log("Error", "Could not parse ping request argument array");
         return NULL;
@@ -331,7 +333,7 @@ static xmlrpc_value * ping_request( xmlrpc_env *    const envP,
 
     if(sck != NULL && dst_ip != NULL){
         //create request
-        request_init((struct srrp_request *) send_buff, SRRP_RTT, (int) dst_id, dst_ip->ip);       //ID & IP for server - temp
+        request_init((struct srrp_request *) send_buff, SRRP_RTT, (int) dst_id, dst_ip->ip, (int) m_id);       //ID & IP for server - temp
         add_param((struct srrp_request *) send_buff, SRRP_ITTR, (int) iterations);
 
         int send_result = send(sck->socket, send_buff, request_size((struct srrp_request *) send_buff), 0);
@@ -356,10 +358,10 @@ static xmlrpc_value * udp_request(  xmlrpc_env *    const envP,
                                     void *          const serverInfo,
                                     void *          const channelInfo){
 
-    xmlrpc_int32 id, dst_id, speed, size, dur, dscp;
+    xmlrpc_int32 id, dst_id, m_id, speed, size, dur, dscp;
 
     //parse argument array
-    xmlrpc_decompose_value(envP, paramArrayP, "(iiiiii)", &id, &dst_id, &speed, &size, &dur, &dscp);
+    xmlrpc_decompose_value(envP, paramArrayP, "(iiiiiii)", &id, &dst_id, &m_id, &speed, &size, &dur, &dscp);
     if (envP->fault_occurred){
         server_log("Error", "Could not parse udp request argument array");
         return NULL;
@@ -374,7 +376,7 @@ static xmlrpc_value * udp_request(  xmlrpc_env *    const envP,
     if(sck != NULL && dst_ip !=NULL){
 
         //create request
-        request_init((struct srrp_request *) send_buff, SRRP_UDP, dst_id,  dst_ip->ip);  
+        request_init((struct srrp_request *) send_buff, SRRP_UDP, dst_id,  dst_ip->ip, (int) m_id);  
         
         add_param((struct srrp_request *) send_buff, SRRP_SPEED, (int) speed);
         add_param((struct srrp_request *) send_buff, SRRP_SIZE, (int) size);
@@ -407,20 +409,20 @@ static xmlrpc_value * dns_request(  xmlrpc_env *    const envP,
     int params = xmlrpc_array_size(envP, paramArrayP);
     server_log("Info", "DNS request %d params", params);
 
-    xmlrpc_int32 id;
+    xmlrpc_int32 id, m_id;
     const char * addr;
     const char * server;
 
     //parse argument array
     if(params == 1)
-        xmlrpc_decompose_value(envP, paramArrayP, "(i)", &id);
+        xmlrpc_decompose_value(envP, paramArrayP, "(ii)", &id, &m_id);
     else if(params == 2)
-        xmlrpc_decompose_value(envP, paramArrayP, "(is)", &id, &addr);
+        xmlrpc_decompose_value(envP, paramArrayP, "(iis)", &id, &m_id, &addr);
     else
-        xmlrpc_decompose_value(envP, paramArrayP, "(iss)", &id, &addr, &server);
+        xmlrpc_decompose_value(envP, paramArrayP, "(iiss)", &id, &m_id, &addr, &server);
 
     if (envP->fault_occurred){
-        server_log("Error", "Could not parse udp request argument array");
+        server_log("Error", "Could not parse dns request argument array");
         return NULL;
     }
     
@@ -429,7 +431,7 @@ static xmlrpc_value * dns_request(  xmlrpc_env *    const envP,
 
     if(sck != NULL){
         //create request
-        request_init((struct srrp_request *) send_buff, SRRP_DNS, 1, server_ip);
+        request_init((struct srrp_request *) send_buff, SRRP_DNS, 1, server_ip, (int) m_id);
 
         if(params > 1)
             add_param_string((struct srrp_request *) send_buff, SRRP_DN, (char *)addr);
@@ -516,7 +518,7 @@ void * rpc_server(void * arg){
     serverparm.port_number      = config.server_rpc_port;
     serverparm.runfirst         = NULL;
     serverparm.runfirst_arg     = NULL;
-    serverparm.log_file_name    = "/var/log/network-sensor-server/xmlrpc_log";
+    serverparm.log_file_name    = "/var/log/weperf/rpc/server-rpc";
 
     xmlrpc_server_abyss_create(&env, &serverparm, XMLRPC_APSIZE(log_file_name), &serverP);
     //xmlrpc_server_abyss_setup_sig(&env, serverP, &oldHandlersP);
@@ -590,7 +592,7 @@ static void deamonise(){
     server_log("Info", "Deamonised");
 }
 
-void closeLog(int sig){
+void stop_server(int sig){
     mysql_remove_all();
     server_log("Info", "Server stopped");
     exit(1);
@@ -621,7 +623,7 @@ int mysql_connect(){
 /*
 * Returns the id
 */
-int mysql_add_sensor(char * ip, char * local_ip, char * ether){
+int mysql_add_sensor(int id, char * ip, char * local_ip, char * ether){
     MYSQL * contd;
     contd = mysql_init(NULL);
 
@@ -632,21 +634,33 @@ int mysql_add_sensor(char * ip, char * local_ip, char * ether){
     }
 
     char buff[500];
-    char * query = "insert into sensors(ip, local_ip, ether, active, start) VALUES('%s', '%s', '%s', true, FROM_UNIXTIME(%d)) ON DUPLICATE KEY UPDATE ip=VALUES(ip), local_ip=VALUES(local_ip), ether=VALUES(ether), start=VALUES(start), active=true, sensor_id=LAST_INSERT_ID(sensor_id)\n";
 
-    sprintf(buff, query, ip, local_ip, ether, time(NULL));
-
-    //server_log("Query", "%s", buff);
+    char * query = "insert into sensors(sensor_id, ip, local_ip, ether, active, start%s) VALUES('%d', '%s', '%s', '%s', true, FROM_UNIXTIME(%d)%s) ON DUPLICATE KEY UPDATE ip=VALUES(ip), local_ip=VALUES(local_ip), ether=VALUES(ether), start=VALUES(start), active=true, sensor_id=LAST_INSERT_ID(sensor_id)\n";
+    
+    //add description if server sensor
+    if(id == 1)
+        sprintf(buff, query, ", description", id, ip, local_ip, ether, time(NULL), ", 'Server'");
+    else
+        sprintf(buff, query, "", id, ip, local_ip, ether, time(NULL), "");
 
     if (mysql_query(contd, buff)) {
       server_log("Error", "Database adding sensor - %s", mysql_error(contd));
       return -1;
     }
 
-    int id = mysql_insert_id(contd);
+    int s_id = mysql_insert_id(contd);
+
+    char * g_query = "insert into group_membership(group_id, sensor_id) VALUES(1, %d) ON DUPLICATE KEY UPDATE group_id=VALUES(group_id), sensor_id=VALUES(sensor_id)\n";
+    sprintf(buff, g_query, s_id);
+
+    if (mysql_query(contd, buff)){
+        server_log("Error", "Database adding sensor to default group - %s", mysql_error(contd));
+        return -1;
+    }
+
     mysql_close(contd);
 
-    return id;
+    return s_id;
 }
 
 int mysql_sensor_connected(int id){
@@ -731,7 +745,7 @@ int mysql_remove_all(){
    return 1;
 }
 
-int mysql_add_bw(int sensor_id, int dst_id, float bandwidth, float duration, float bytes){
+int mysql_add_bw(int sensor_id, int dst_id, int m_id, float bandwidth, float duration, float bytes){
     MYSQL * contd;
     contd = mysql_init(NULL);
 
@@ -742,12 +756,12 @@ int mysql_add_bw(int sensor_id, int dst_id, float bandwidth, float duration, flo
     }
 
     char buff[300];
-    char * query = "insert into bw(sensor_id, dst_id, bytes, duration, speed, time) values(%d, %d, %f, %f, %f, FROM_UNIXTIME(%d))\n";
+    char * query = "insert into tcp(sensor_id, dst_id, measurement_id, bytes, duration, speed, time) values(%d, %d, %d, %f, %f, %f, FROM_UNIXTIME(%d))\n";
 
-    sprintf(buff, query, sensor_id, dst_id, bytes, duration, bandwidth, time(NULL));
+    sprintf(buff, query, sensor_id, dst_id, m_id, bytes, duration, bandwidth, time(NULL));
 
     if(mysql_query(contd, buff)){
-        server_log("Error", "Database adding bandwidth - %s", mysql_error(contd));
+        server_log("Error", "Database adding tcp - %s", mysql_error(contd));
         mysql_close(contd);
         return -1;
     }
@@ -756,7 +770,7 @@ int mysql_add_bw(int sensor_id, int dst_id, float bandwidth, float duration, flo
     return 1;
 }
 
-int mysql_add_rtt(int sensor_id, int dst_id, float min, float max, float avg, float dev){
+int mysql_add_rtt(int sensor_id, int dst_id, int m_id, float min, float max, float avg, float dev){
     MYSQL * contd;
     contd = mysql_init(NULL);
 
@@ -767,12 +781,12 @@ int mysql_add_rtt(int sensor_id, int dst_id, float min, float max, float avg, fl
     }
 
     char buff[200];
-    char * query = "insert into rtts(sensor_id, dst_id, min, max, avg, dev, time) values(%d, %d, %f, %f, %f, %f, FROM_UNIXTIME(%d))\n";
+    char * query = "insert into rtt(sensor_id, dst_id, measurement_id, min, max, avg, dev, time) values(%d, %d, %d, %f, %f, %f, %f, FROM_UNIXTIME(%d))\n";
 
-    sprintf(buff, query, sensor_id, dst_id, min, max, avg, dev, time(NULL));
+    sprintf(buff, query, sensor_id, dst_id, m_id, min, max, avg, dev, time(NULL));
 
     if(mysql_query(contd, buff)){
-        server_log("Error", "Database adding bandwidth - %s", mysql_error(contd));
+        server_log("Error", "Database adding rtt - %s", mysql_error(contd));
         mysql_close(contd);
         return -1;
     }
@@ -781,7 +795,7 @@ int mysql_add_rtt(int sensor_id, int dst_id, float min, float max, float avg, fl
     return 1;
 }
 
-int mysql_add_udp(int sensor_id, int dst_id, float size, float dur, float bw, float jit, float pkls, int dscp, float speed){
+int mysql_add_udp(int sensor_id, int dst_id, int m_id, float size, float dur, float bw, float jit, float pkls, int dscp, float speed){
     MYSQL * contd;
     contd = mysql_init(NULL);
 
@@ -792,9 +806,9 @@ int mysql_add_udp(int sensor_id, int dst_id, float size, float dur, float bw, fl
     }
 
     char buff[200];
-    char * query = "insert into udps(sensor_id, dst_id, size, duration, bw, jitter, packet_loss, dscp_flag , send_bw, time) values(%d, %d, %f, %f, %f, %f, %f, %d, %f, FROM_UNIXTIME(%d))\n";
+    char * query = "insert into udp(sensor_id, dst_id, measurement_id, size, duration, bw, jitter, packet_loss, dscp_flag , send_bw, time) values(%d, %d, %d, %f, %f, %f, %f, %f, %d, %f, FROM_UNIXTIME(%d))\n";
 
-    sprintf(buff, query, sensor_id, dst_id, size, dur, bw, jit, pkls, dscp, speed, time(NULL));
+    sprintf(buff, query, sensor_id, dst_id, m_id, size, dur, bw, jit, pkls, dscp, speed, time(NULL));
 
     if(mysql_query(contd, buff)){
         server_log("Error", "Database adding udp - %s", mysql_error(contd));
@@ -806,7 +820,7 @@ int mysql_add_udp(int sensor_id, int dst_id, float size, float dur, float bw, fl
     return 1;
 }
 
-int mysql_add_dns(int sensor_id, float duration){
+int mysql_add_dns(int sensor_id, int m_id, float duration){
     MYSQL * contd;
     contd = mysql_init(NULL);
 
@@ -817,9 +831,9 @@ int mysql_add_dns(int sensor_id, float duration){
     }
 
     char buff[200];
-    char * query = "insert into dns(sensor_id, duration,time) values(%d, %f, FROM_UNIXTIME(%d))\n";
+    char * query = "insert into dns(sensor_id, measurement_id, duration,time) values(%d, %d, %f, FROM_UNIXTIME(%d))\n";
 
-    sprintf(buff, query, sensor_id, duration, time(NULL));
+    sprintf(buff, query, sensor_id, m_id, duration, time(NULL));
 
     if(mysql_query(contd, buff)){
         server_log("Error", "Database adding dns - %s", mysql_error(contd));
@@ -831,7 +845,7 @@ int mysql_add_dns(int sensor_id, float duration){
     return 1;
 }
 
-int mysql_add_dns_failure(int sensor_id){
+int mysql_add_dns_failure(int sensor_id, int m_id){
     MYSQL * contd;
     contd = mysql_init(NULL);
 
@@ -842,7 +856,7 @@ int mysql_add_dns_failure(int sensor_id){
     }
 
     char buff[200];
-    char * query = "insert into dns_failure(sensor_id, time) values(%d, FROM_UNIXTIME(%d))\n";
+    char * query = "insert into dns_failure(sensor_id, measurement_id, time) values(%d, %d, FROM_UNIXTIME(%d))\n";
 
     sprintf(buff, query, sensor_id, time(NULL));
 
@@ -859,8 +873,8 @@ int mysql_add_dns_failure(int sensor_id){
 int main(int argc, char ** argv) {
 
     //signal handler to close log file
-    signal(SIGINT, closeLog);
-    signal(SIGTERM, closeLog);
+    signal(SIGINT, stop_server);
+    signal(SIGTERM, stop_server);
 
     //casue zombies to be reaped automatically 
     if (signal(SIGCHLD, SIG_IGN) == SIG_ERR) {
@@ -871,7 +885,7 @@ int main(int argc, char ** argv) {
     server_log("Info" , "Server Started");
 
     //parse configurations from file
-    if (ini_parse("/etc/network-sensor-server/config.ini", handler, &config) < 0) {
+    if (ini_parse("/etc/weperf/server-config.ini", handler, &config) < 0) {
         server_log("Error", "Can't load 'config.ini'\n");
         return 1;
     }
@@ -919,7 +933,7 @@ int main(int argc, char ** argv) {
 
     //make server in_addr and remember 
     inet_aton(config.server_pub_addr, &server_ip);
-    ipinstall(1, server_ip);
+    //ipinstall(1, server_ip);
 
     //start rpc server in thread
     pthread_t pth;
@@ -933,7 +947,7 @@ int main(int argc, char ** argv) {
         server_log("Info", "Sensor connected, sending local_info request");
 
         //send request for MAC address
-        request_init((struct srrp_request *) send_buff, SRRP_ETHER, 1, server_ip);     //ID & IPfor server - temp
+        request_init((struct srrp_request *) send_buff, SRRP_ETHER, 1, server_ip, 0);     //ID & IPfor server - temp
         send(newSocket, send_buff, request_size((struct srrp_request *) send_buff), 0);
 
         //wait for reply with MAC
@@ -976,7 +990,14 @@ int main(int argc, char ** argv) {
         inet_ntop(AF_INET, &clientAddr.sin_addr, addr, addr_size);
 
         //add to db
-        int id = mysql_add_sensor(addr, inet_ntoa(local_ip), ether);
+        int id;
+        if(strcmp(ether, config.server_ether) ==  0){
+            //server sensor
+            id = mysql_add_sensor(1, addr, inet_ntoa(local_ip), ether);
+        }else{
+            //standalone sensor
+            id = mysql_add_sensor(0, addr, inet_ntoa(local_ip), ether);
+        }   
 
         server_log("Info" , "Sensor %s (%s) connected with id %d", ether, addr, id);
 
@@ -996,7 +1017,7 @@ int main(int argc, char ** argv) {
             int hb_pid;
             if((hb_pid = fork()) == 0){
                 //build request
-                request_init((struct srrp_request *) send_buff, SRRP_HB, 1, server_ip);        //ID & IP for server - temp
+                request_init((struct srrp_request *) send_buff, SRRP_HB, 1, server_ip, 0);        //ID & IP for server - temp
 
                 while(1){
                     if(!mysql_sensor_connected(id))
@@ -1005,69 +1026,6 @@ int main(int argc, char ** argv) {
                     printf("Sending hb request\n");
                     send(newSocket, send_buff, request_size((struct srrp_request *) send_buff), 0);
                     sleep(1);           //second
-                }
-            }
-
-            //ping loop
-            int ping_pid;
-            if((ping_pid = fork()) == 0){
-                //initial sleep of 10 seconds
-                sleep(10);  
-
-                //build the request
-                request_init((struct srrp_request *) send_buff, SRRP_RTT, 1, server_ip);       //ID & IP for server - temp
-                add_param((struct srrp_request *) send_buff, SRRP_ITTR, 5);
-
-                while(10){
-                    if(!mysql_sensor_connected(id))
-                        _exit(0);
-
-                    server_log("Info", "Sending ping request to sensor %d", id);
-                    send(newSocket, send_buff, request_size((struct srrp_request *) send_buff), 0);
-                    sleep(config.rtt_interval);      
-                }
-
-            }
-
-            //iperf loop
-            int iperf_pid;
-            if((iperf_pid = fork()) == 0){
-                //initial sleep of 1 minute 
-                sleep(30);  
-
-                //build the request
-                request_init((struct srrp_request *) send_buff, SRRP_BW, 1, server_ip);        //ID & IP for server -temp
-                add_param((struct srrp_request *) send_buff, SRRP_DUR, 10);
-
-                while(10){
-                    if(!mysql_sensor_connected(id))
-                        _exit(0);
-
-                    server_log("Info", "Sending iperf request to sensor %d", id);
-                    send(newSocket, send_buff, request_size((struct srrp_request *) send_buff), 0);
-
-                    sleep(config.tcp_bw_interval);
-                }
-            }
-
-            //dns loop
-            int dns_pid;
-            if((dns_pid = fork()) == 0){
-                //inital sleep
-                sleep(5);
-
-                //build the request
-                request_init((struct srrp_request *) send_buff, SRRP_DNS, 1, server_ip);       //ID & IP for server - temp
-                add_param_string((struct srrp_request *) send_buff, SRRP_DN, "google.com");
-                add_param_string((struct srrp_request *) send_buff, SRRP_SERVER, "148.88.65.53");
-
-                while(1){
-                    if(!mysql_sensor_connected(id))
-                        _exit(0);
-
-                    server_log("Info", "Sending dns request to sensor %d", id);
-                    send(newSocket, send_buff, request_size((struct srrp_request *) send_buff), 0);
-                    sleep(config.dns_interval);      
                 }
             }
 
@@ -1100,11 +1058,6 @@ int main(int argc, char ** argv) {
                     if(response->type == SRRP_HB){
                         printf("Received hb response\n");
 
-                        //bit of a hack to break from srrp to receive MAC of sensor
-                        //char * sensor_mac = malloc(18);
-                        //memcpy(sensor_mac, &response->results[0], 18);
-
-                        //server_log("Info", "HB has MAC %s", sensor_mac);
                     }else if(response->type == SRRP_BW){
                         server_log("Info", "Recevied iperf response from sensor %d", id);
 
@@ -1124,7 +1077,7 @@ int main(int argc, char ** argv) {
 
                         //if all the results - add to db
                         if(bandwidth && duration && size){
-                            mysql_add_bw(id, response->dst_id, bandwidth, duration, size);
+                            mysql_add_bw(id, response->dst_id, response->m_id, bandwidth, duration, size);
                         }else{
                             server_log("Error", "Response missing iperf results from sensor %d", id);
                         }
@@ -1154,7 +1107,7 @@ int main(int argc, char ** argv) {
                         }
 
                         if(avg && min && max){
-                            mysql_add_rtt(id, response->dst_id, min, max, avg, dev);
+                            mysql_add_rtt(id, response->dst_id, response->m_id, min, max, avg, dev);
                         }else{
                             server_log("Error", "Response missing ping results from sensor %d", id);
                         }
@@ -1188,7 +1141,7 @@ int main(int argc, char ** argv) {
 
                         //add to db
                         if(dur && size && bw && speed){
-                            mysql_add_udp(id, response->dst_id, size, dur, bw, jit, pkls, (int) dscp, speed);
+                            mysql_add_udp(id, response->dst_id, response->m_id, size, dur, bw, jit, pkls, (int) dscp, speed);
                         }else{
                             server_log("Error", "Response missing udp iperf results from sensor %d", id);
                         }
@@ -1208,14 +1161,14 @@ int main(int argc, char ** argv) {
 
                             //check all results are there
                             if(dur)
-                                mysql_add_dns(id, dur);
+                                mysql_add_dns(id, response->m_id, dur);
                             else
                                 server_log("Error", "Response missing DNS results from sensor %d", id);
 
                         }else{
                             server_log("Info", "Received unsucessfull dns response from sensor %d", id);
 
-                            mysql_add_dns_failure(id);
+                            mysql_add_dns_failure(id, response->m_id);
                         }
 
                     }else{
@@ -1237,17 +1190,8 @@ int main(int argc, char ** argv) {
             //close comm socket
             close(newSocket);
 
-            //kill ping loop (process)
-            kill(ping_pid, SIGKILL);
-
             //kill hb loop (process)
             kill(hb_pid, SIGKILL);
-
-            //kill iperf loop
-            kill(iperf_pid, SIGKILL);
-
-            //kill dns loop
-            kill(dns_pid, SIGKILL);
 
             //kill comm (process)
             _exit(0);
@@ -1255,7 +1199,7 @@ int main(int argc, char ** argv) {
     }
 
     close(welcomeSocket);
-    closelog();
+    stop_server(0);
 
     return 0;
 }

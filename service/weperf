@@ -5,15 +5,15 @@
 #
 # Get function from functions library
 # Start the service FOO
-SEREXE=/usr/bin/network-sensor-server
-SERPID=/var/run/network-sensor-server.pid
-SCHEXE=/usr/bin/scheduler
-SCHPID=/var/run/network-sensor-scheduler.pid
-NOTEXE=/usr/bin/network-sensor-notifier
-NOTPID=/var/run/network-sensor-notifier.pid
-SENEXE=/usr/bin/sensor
-SENPID=/var/run/sensor.pid
-CONF=/etc/network-sensor-server/config.ini
+SEREXE=/usr/bin/weperf-server
+SERPID=/var/run/weperf-server.pid
+SCHEXE=/usr/bin/weperf
+SCHPID=/var/run/weperf-scheduler.pid
+NOTEXE=/usr/bin/weperf-notifier
+NOTPID=/var/run/weperf-notifier.pid
+SENEXE=/usr/bin/weperf-sensor
+SENPID=/var/run/weperf-sensor.pid
+CONF=/etc/weperf/server-config.ini
 
 if ! test -e $EXE; then
 	echo "No executable"
@@ -52,9 +52,9 @@ start() {
         cat $SENPID
 
         echo "Starting iperf servers: "
-        iperf -s -p 5001 > /var/log/network-sensor-server/iperf/tcp_log &
+        iperf -s -p 5001 > /var/log/weperf/iperf/tcp_log &
         echo $!
-        iperf -s -u -p 5002 > /var/log/network-sensor-server/iperf/udp_log &
+        iperf -s -u -p 5002 > /var/log/weperf/iperf/udp_log &
         echo $!
     fi
 
@@ -74,11 +74,11 @@ stop() {
     echo "Stopping iperf servers"
     pkill iperf
 
-    echo "Stopping scheduler"
-    pkill -SIGTERM scheduler
+    echo "Stopping weperf scheduler"
+    pkill -SIGTERM weperf-scheduler
 
-    echo "Stopping server"
-    pkill -SIGTERM server	#also kills self
+    echo "Stopping weperf server"
+    pkill -SIGTERM weperf-server	#also kills self
 }
 ### main logic ###
 case "$1" in
