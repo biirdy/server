@@ -1,10 +1,10 @@
-drop database if exists sensor_data;
-create database sensor_data;
+drop database if exists weperf_data;
+create database weperf_data;
 
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY 'root' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 
-use tnp;
+use weperf_data;
 
 #sensors
 create table sensors(		sensor_id integer NOT NULL AUTO_INCREMENT, ether varchar(17) NOT NULL, ip varchar(15) NOT NULL, loacl_ip varchar(15) NOT NULL, active boolean not null, start DATETIME not null, end DATETIME, description varchar(50), UNIQUE(ether), primary key(sensor_id)) engine = InnoDB; 
@@ -37,16 +37,18 @@ create table groups(			group_id integer NOT NULL AUTO_INCREMENT, name varchar(20
 create table group_membership(	id integer NOT NULL AUTO_INCREMENT, group_id integer NOT NULL, sensor_id integer NOT NULL, primary key(id), foreign key(group_id) references groups(group_id), foreign key(sensor_id) references sensors(sensor_id)) engine = InnoDB;
 alter table group_membership add unique index(group_id, sensor_id);
 
+#create defulat group
+
 #alarms
 
 #members
-drop database if exists members;
-create database members;
+drop database if exists weperf_users;
+create database weperf_users;
 
-use members;
+use weperf_users;
 
-CREATE TABLE members(id int(4) NOT NULL auto_increment, username varchar(65) NOT NULL default '', password varchar(65) NOT NULL default '', PRIMARY KEY(id)) engine = InnoDB;
+CREATE TABLE users(id int(4) NOT NULL auto_increment, username varchar(65) NOT NULL default '', email varchar(65) NOT NULL default '', password varchar(65) NOT NULL default '', admin boolean NOT NULL default false, PRIMARY KEY(id)) engine = InnoDB;
 
 #create defult memeber
-insert into members(username, password) VALUES('admin', 'admin');
+insert into members(username, email, admin, password) VALUES('admin', 'admin@admin.net', true, 'admin',);
 

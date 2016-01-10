@@ -1,10 +1,7 @@
 #!/bin/bash
 #
 # chkconfig: 35 90 12
-# description: Foo server
-#
-# Get function from functions library
-# Start the service FOO
+# description: weperf server 
 SEREXE=/usr/bin/weperf-server
 SERPID=/var/run/weperf-server.pid
 SCHEXE=/usr/bin/weperf
